@@ -532,7 +532,7 @@ def main():
         step_4()
 
 def step_1():
-    st.title('Step 1: Developer Dashboard Snapshot')
+    st.title('Step 1: Developer Dashboard')
     st.write('Upload the Sanction Letter to extract relevant milestones and conditions.')
 
     uploaded_file = st.file_uploader("Upload sanction letter", type="pdf")
