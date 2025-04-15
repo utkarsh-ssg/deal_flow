@@ -43,7 +43,7 @@ if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
 
 # Page setup - Set to light mode
-st.set_page_config(page_title="Developer Dashboard Snapshot", layout="wide")
+st.set_page_config(page_title="Developer Dashboard", layout="wide")
 
 # Apply consistent light gray theme with targeted fixes for remaining black backgrounds
 st.markdown("""
