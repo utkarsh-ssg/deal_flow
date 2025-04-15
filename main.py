@@ -543,7 +543,7 @@ def step_1():
 
         cached_data = load_from_cache(file_hash)
         if cached_data:
-            st.success("Loaded from cache. No reprocessing needed ✅")
+            st.success("Loaded from cache. No reprocessing needed")
 
             st.session_state["file_hash"] = file_hash
             st.session_state["full_text"] = cached_data["full_text"]
@@ -855,8 +855,11 @@ def step_3():
                     st.subheader("Conditions Precedent:")
                     selected_cp = []
                     for i, item in enumerate(data["conditions_precedent"]):
-                        st.markdown(f"**{i+1}.** {item}")
-                        checked = st.checkbox("Select", key=f"cp_{i}", value=False)
+                        col1, col2 = st.columns([0.9, 0.1])
+                        with col1:
+                            st.markdown(f"**{i+1}.** {item}")
+                        with col2:
+                            checked = st.checkbox("", key=f"cp_{i}", value=False)
                         if checked:
                             selected_cp.append(item)
                     st.session_state["selected_conditions_precedent"] = selected_cp
@@ -865,11 +868,15 @@ def step_3():
                     st.subheader("Conditions Subsequent with Frequency:")
                     selected_cs = []
                     for i, item in enumerate(data["conditions_subsequent"]):
-                        st.markdown(f"**{i+1}.** {item}")
-                        checked = st.checkbox("Select", key=f"cs_{i}", value=False)
+                        col1, col2 = st.columns([0.9, 0.1])
+                        with col1:
+                            st.markdown(f"**{i+1}.** {item}")
+                        with col2:
+                            checked = st.checkbox("", key=f"cs_{i}", value=False)
                         if checked:
                             selected_cs.append(item)
                     st.session_state["selected_conditions_subsequent"] = selected_cs
+
 
                 st.subheader("Loan Informations")
                 st.markdown(f"**Loan Number:** ABC11000334")
@@ -893,7 +900,7 @@ def step_3():
                                 break
 
                     if sales_df is not None:
-                        st.subheader("Sales Information")
+                        st.markdown("<h3 style='color:#003366;'>Sales Information</h3>", unsafe_allow_html=True)
 
                         selected_flats_by_tower = {}
                         unique_towers = sales_df["Tower No"].dropna().unique()
@@ -902,14 +909,32 @@ def step_3():
                         total_selected = 0
 
                         for tower in unique_towers:
-                            with st.expander(f"Tower: {tower}"):
-                                flats_in_tower = sales_df[sales_df["Tower No"] == tower]["Flat no"].dropna().unique()
+                            # Styled header for each tower (outside expander)
+                            st.markdown(f"<h4 style='color:#2C3E50; margin-bottom: 0;'>Tower: {tower}</h4>", unsafe_allow_html=True)
+
+                            # Applying custom styling to expander header
+                            with st.expander(f"Select Flats in Tower {tower}", expanded=True):
+                                st.markdown("""
+                                    <style>
+                                        .streamlit-expanderHeader {
+                                            color: #2C3E50;  /* Color for expander header text */
+                                            font-weight: bold;  /* Bold text */
+                                            font-size: 18px;  /* Adjust font size */
+                                        }
+                                        .streamlit-expander .streamlit-expanderContent {
+                                            color: #333333;  /* Color for content inside expander */
+                                        }
+                                    </style>
+                                """, unsafe_allow_html=True)
                                 
+                                flats_in_tower = sales_df[sales_df["Tower No"] == tower]["Flat no"].dropna().unique()
+
                                 selected_flats = st.multiselect(
                                     f"Select Flats in Tower {tower}",
                                     flats_in_tower,
                                     key=f"flats_{tower}"
                                 )
+
                                 
                                 selected_flats_by_tower[tower] = selected_flats
                                 
@@ -925,18 +950,18 @@ def step_3():
                                 total_sold += sold_count
                                 total_selected += selected_count
 
-                                st.markdown(f"**Flats Sold:** {selected_count}")
+                                st.markdown(f"<div style='margin-top:10px; font-weight:bold;'>Flats Selected: <span style='color:#007ACC'>{selected_count}</span></div>", unsafe_allow_html=True)
 
-                        # Realtime Global Summary (appears below all tower sections)
-                        st.markdown("---")
-                        st.markdown(f"Total Flats Sold: **{total_selected}**")
-                        # Save selected sales data to session state
+                        # Global Summary
+                        st.markdown("<hr style='border-top: 2px solid #bbb;'/>", unsafe_allow_html=True)
+                        st.markdown(f"<h4 style='color:#1A5276;'>Total Flats Selected Across All Towers: <span style='color:#2E86C1'>{total_selected}</span></h4>", unsafe_allow_html=True)
+
+                        # Save to session state
                         st.session_state.step_3_data = {
                             "selected_flats_by_tower": selected_flats_by_tower,
                             "total_selected": total_selected,
                             "total_sold": total_sold,
                         }
-
 
                     else:
                         st.warning("Sales data not available or missing required columns.")
