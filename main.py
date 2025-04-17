@@ -15,6 +15,7 @@ import re
 import hashlib
 import os
 import pickle
+from streamlit.components.v1 import html
 
 CACHE_DIR = "pdf_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -387,7 +388,8 @@ def process_image_with_gemini(image):
     - Construction percentages
     - Collection/Promoters' contributions
     - Pre-Disbursement conditions
-    - Covenants and their timelines
+    - Takeover conditions(Pre-disbursement and Disbursement)
+    - Covenants along with Timeline
     
     Return all the text content from the image, preserving the structure and relationships.
     """
@@ -424,8 +426,9 @@ def extract_structured_data(full_text):
     - Incremental Collection/Promoters' Contribution (Rs Cr)
     
     PART 2: Extract these as separate bullet point lists that apply to all rows:
-    - Conditions Precedent: These are the "Pre-Disbursement" conditions for all loans
-    - Conditions Subsequent with Frequency: These are the "Covenants" with both the Covenant description and Timeline
+    - Pre-Disbursement Conditions: These are the "Pre-Disbursement" conditions for first loan
+    - Conditions Precedent: These are the "Takeover Conditions(pre-disbursement and disbursement)" for all other loan except first loan.
+    - Conditions Subsequent with Frequency: These are the "Covenants" with both the Covenant description and Timeline from the table only
     
     Return as valid JSON in this exact format:
     {{
@@ -434,18 +437,24 @@ def extract_structured_data(full_text):
           "Sr. No.": 1,
           "Tranche Amount (Rs Cr)": 12.00,
           "Cumulative Disbursement (Rs Cr)": 12.00,
-          "Construction % (Europa, Mynsa & Capella)": "",
-          "Incremental Collection/Promoters' Contribution (Rs Cr)": ""
+          "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed"": "",
+          "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": ""
         }},
         {{
           "Sr. No.": 2,
           "Tranche Amount (Rs Cr)": 5.00,
           "Cumulative Disbursement (Rs Cr)": 17.00,
-          "Construction % (Europa, Mynsa & Capella)": "10.00%",
-          "Incremental Collection/Promoters' Contribution (Rs Cr)": 5.00
+          "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed": "10.00%",
+          "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": 5.00
         }},
         // more rows...
       ],
+      "pre_disbursement_conditions": [
+        "Condition 1",
+        "Condition 2",
+        // more conditions...
+      ],
+
       "conditions_precedent": [
         "Condition 1",
         "Condition 2",
@@ -510,11 +519,22 @@ def create_excel(data):
 def get_file_hash(file_bytes):
     return hashlib.md5(file_bytes).hexdigest()
 
-# Functions for Excel processing (Step 2)
 def clean_dataframe(df):
     df = df.dropna(how="all").dropna(axis=1, how="all")
     df.columns = df.columns.astype(str).str.strip()
+
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            df[col] = df[col].apply(
+                lambda x: "" if pd.isna(x)
+                else f"{int(x)}" if float(x).is_integer()
+                else f"{x:.2f}"
+            )
+        else:
+            df[col] = df[col].fillna("")
+
     return df
+
 
 # Navigation functions
 def go_to_step(step_number):
@@ -654,7 +674,13 @@ def step_1():
                 """, unsafe_allow_html=True)
 
                 st.markdown(styled_table_html, unsafe_allow_html=True)
+            
+            
 
+            if "pre_disbursement_conditions" in data:
+                st.write("Pre-Disbursement Conditions:")
+                for i, item in enumerate(data["pre_disbursement_conditions"]):
+                    st.write(f"{i+1}. {item}")
 
             if "conditions_precedent" in data:
                 st.write("Conditions Precedent:")
@@ -669,12 +695,12 @@ def step_1():
             st.button("Next", on_click=go_to_step, args=(2,))
 
 def step_2():
-    st.title('Step 2: Project Data Comparison')
-    st.write('Upload Excel files to compare project data')
+    st.title('Step 2: MIS Data')
+    st.write('Upload MIS files')
     
     # Upload both files
-    file1 = st.file_uploader("Upload First Excel File (Earlier Data)", type=["xlsx"], key="file1")
-    file2 = st.file_uploader("Upload Second Excel File (Latest Data)", type=["xlsx"], key="file2")
+    file1 = st.file_uploader("Upload Previous MIS", type=["xlsx"], key="file1")
+    file2 = st.file_uploader("Upload Current MIS", type=["xlsx"], key="file2")
     
     if file1 and file2:
         xls1 = pd.ExcelFile(file1)
@@ -768,7 +794,7 @@ def step_2():
 
                         
                         
-                        styled_df = df2.style.applymap(lambda _: 'background-color: #FFFFFF; color: #333333')
+                        styled_df = df2.style.format(lambda x: f"{x:.2f}" if isinstance(x, (int, float)) and not pd.isna(x) else x).applymap(lambda _: 'background-color: #FFFFFF; color: #333333')
                         st.write(styled_df)
                         comparison_results[sheet] = {
                             "df1": df1,
@@ -792,7 +818,7 @@ def step_2():
         with col2:
             st.button("Next", on_click=go_to_step, args=(3,))
     else:
-        st.info("Please upload both Excel files to compare and display data.")
+        st.info("Please upload both MIS files.")
         st.button("Back", on_click=go_to_step, args=(1,))
 
 def step_3():
@@ -801,44 +827,54 @@ def step_3():
         data = st.session_state.step_1_data
 
         if "table_data" in data:
-            st.subheader("Table Data:")
+            # Dropdown for milestone selection
             table_df = pd.DataFrame(data["table_data"])
-            
-            # Custom HTML table with inline styling
-            styled_table_html = table_df.to_html(classes='custom-table', index=False)
+            milestone_options = [f"Milestone {i+1}" for i in range(len(table_df))]
+            selected_milestone = st.selectbox("Select a Milestone to proceed", ["-- Select --"] + milestone_options)
 
-            st.markdown("""
-                <style>
-                .custom-table {
+            st.subheader("Table Data:")
+
+            # Get index of selected milestone
+            selected_index = milestone_options.index(selected_milestone) if selected_milestone != "-- Select --" else None
+
+            # Build custom styled HTML table
+            styled_rows = []
+            headers = "".join([f"<th>{col}</th>" for col in table_df.columns])
+            styled_rows.append(f"<tr>{headers}</tr>")
+
+            for i, row in table_df.iterrows():
+                row_style = "background-color: #D3E3FC;" if selected_index == i else ("background-color: #F5F5F5;" if i % 2 == 1 else "")
+                row_html = "".join([f"<td>{cell}</td>" for cell in row])
+                styled_rows.append(f"<tr style='{row_style}'>{row_html}</tr>")
+
+            styled_table_html = f"""
+            <style>
+                .custom-table {{
                     border-collapse: collapse;
                     width: 100%;
                     font-family: Arial, sans-serif;
-                }
-                .custom-table th, .custom-table td {
+                }}
+                .custom-table th, .custom-table td {{
                     border: 1px solid #ddd;
                     padding: 8px;
                     text-align: left;
                     color: black;
-                }
-                .custom-table th {
+                }}
+                .custom-table th {{
                     background-color: #E0E0E0;
                     font-weight: bold;
-                }
-                .custom-table tr:nth-child(even) {
-                    background-color: #F5F5F5;
-                }
-                .custom-table tr:hover {
-                    background-color: #D3E3FC;
-                }
-                </style>
-            """, unsafe_allow_html=True)
+                }}
+            </style>
+            <table class="custom-table">
+                {''.join(styled_rows)}
+            </table>
+            """
 
             st.markdown(styled_table_html, unsafe_allow_html=True)
 
 
-            # Dropdown for milestone selection
-            milestone_options = [f"Milestone {i+1}" for i in range(len(table_df))]
-            selected_milestone = st.selectbox("Select a Milestone to proceed", ["-- Select --"] + milestone_options)
+
+            
 
             if selected_milestone != "-- Select --":
                 # st.subheader("Project Details")
@@ -890,10 +926,10 @@ def step_3():
                     # Ensure the required sheet and columns exist
                     sales_df = None
                     for sheet_name, sheet_data in step2_data.items():
-                        if isinstance(sheet_data, dict) and "df1" in sheet_data:
-                            df = sheet_data["df1"]
+                        if isinstance(sheet_data, dict) and "df2" in sheet_data:
+                            df = sheet_data["df2"]
                             required_cols = [
-                                "Flat no", "Tower No"
+                                "Flat no", "Tower No", "Sold/Unsold"
                             ]
                             if all(col in df.columns for col in required_cols):
                                 sales_df = df
@@ -902,66 +938,84 @@ def step_3():
                     if sales_df is not None:
                         st.markdown("<h3 style='color:#003366;'>Sales Information</h3>", unsafe_allow_html=True)
 
-                        selected_flats_by_tower = {}
+                        recently_unsold_flats_by_tower = {}
+                        recently_sold_flats_by_tower = {}
                         unique_towers = sales_df["Tower No"].dropna().unique()
 
-                        total_sold = 0
-                        total_selected = 0
+                        total_recently_sold = 0
+                        total_recently_unsold = 0
 
                         for tower in unique_towers:
-                            # Styled header for each tower (outside expander)
                             st.markdown(f"<h4 style='color:#2C3E50; margin-bottom: 0;'>Tower: {tower}</h4>", unsafe_allow_html=True)
 
-                            # Applying custom styling to expander header
                             with st.expander(f"Select Flats in Tower {tower}", expanded=True):
                                 st.markdown("""
                                     <style>
                                         .streamlit-expanderHeader {
-                                            color: #2C3E50;  /* Color for expander header text */
-                                            font-weight: bold;  /* Bold text */
-                                            font-size: 18px;  /* Adjust font size */
+                                            color: #2C3E50;
+                                            font-weight: bold;
+                                            font-size: 18px;
                                         }
                                         .streamlit-expander .streamlit-expanderContent {
-                                            color: #333333;  /* Color for content inside expander */
+                                            color: #333333;
                                         }
                                     </style>
                                 """, unsafe_allow_html=True)
-                                
-                                flats_in_tower = sales_df[sales_df["Tower No"] == tower]["Flat no"].dropna().unique()
 
-                                selected_flats = st.multiselect(
-                                    f"Select Flats in Tower {tower}",
-                                    flats_in_tower,
-                                    key=f"flats_{tower}"
+                                # Sold flats which went Unsold
+                                recently_unsold_flats = sales_df[
+                                    (sales_df["Tower No"] == tower) &
+                                    (sales_df["Sold/Unsold"].str.lower() == "sold")
+                                ]["Flat no"].dropna().unique()
+
+                                selected_recently_unsold_flats = st.multiselect(
+                                    f"Select Sold Flats in Tower which went Unsold {tower}",
+                                    recently_unsold_flats,
+                                    key=f"recently_unsold_flats_{tower}"
                                 )
 
-                                
-                                selected_flats_by_tower[tower] = selected_flats
-                                
-                                # Filter for sold flats in selected
+                                # Unsold flats which went Sold
+                                recently_sold_flats = sales_df[
+                                    (sales_df["Tower No"] == tower) &
+                                    (sales_df["Sold/Unsold"].str.lower() == "unsold")
+                                ]["Flat no"].dropna().unique()
+
+                                selected_recently_sold_flats = st.multiselect(
+                                    f"Select Unsold Flats in Tower which were Sold {tower}",
+                                    recently_sold_flats,
+                                    key=f"unsold_flats_{tower}"
+                                )
+
+                                # Combine total selected
+                                combined_selected = list(set(selected_recently_unsold_flats) | set(selected_recently_sold_flats))
+                                recently_unsold_flats_by_tower[tower] = selected_recently_unsold_flats
+                                recently_sold_flats_by_tower[tower] = selected_recently_sold_flats
+
                                 selected_df = sales_df[
                                     (sales_df["Tower No"] == tower) &
-                                    (sales_df["Flat no"].isin(selected_flats))
+                                    (sales_df["Flat no"].isin(combined_selected))
                                 ]
-                                
-                                sold_count = selected_df[selected_df["Sold/Unsold"].str.lower() == "sold"].shape[0]
-                                selected_count = selected_df.shape[0]
 
-                                total_sold += sold_count
-                                total_selected += selected_count
+                                recently_unsold_count = selected_df[selected_df["Sold/Unsold"].str.lower() == "sold"].shape[0]
+                                recently_sold_count = selected_df[selected_df["Sold/Unsold"].str.lower() == "unsold"].shape[0]
 
-                                st.markdown(f"<div style='margin-top:10px; font-weight:bold;'>Flats Selected: <span style='color:#007ACC'>{selected_count}</span></div>", unsafe_allow_html=True)
+                                total_recently_unsold += recently_unsold_count
+                                total_recently_sold += recently_sold_count
 
-                        # Global Summary
+                                st.markdown(f"<div style='margin-top:10px; font-weight:bold;'>Recently Unsold Flats Selected: <span style='color:#007ACC'>{recently_unsold_count}</span></div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='font-weight:bold;'>Recently Sold Flats Selected: <span style='color:#28B463'>{recently_sold_count}</span></div>", unsafe_allow_html=True)
+
                         st.markdown("<hr style='border-top: 2px solid #bbb;'/>", unsafe_allow_html=True)
-                        st.markdown(f"<h4 style='color:#1A5276;'>Total Flats Selected Across All Towers: <span style='color:#2E86C1'>{total_selected}</span></h4>", unsafe_allow_html=True)
+                        st.markdown(f"<h4 style='color:#1A5276;'>Total Sold Flats Selected which went Unsold: <span style='color:#2E86C1'>{total_recently_unsold}</span></h4>", unsafe_allow_html=True)
+                        st.markdown(f"<h4 style='color:#145A32;'>Total Unsold Flats Selected which went Sold: <span style='color:#28B463'>{total_recently_sold}</span></h4>", unsafe_allow_html=True)
 
-                        # Save to session state
                         st.session_state.step_3_data = {
-                            "selected_flats_by_tower": selected_flats_by_tower,
-                            "total_selected": total_selected,
-                            "total_sold": total_sold,
+                            "recently_unsold_flats_by_tower": recently_unsold_flats_by_tower,
+                            "recently_sold_flats_by_tower": recently_sold_flats_by_tower,
+                            "total_recently_sold": total_recently_unsold,
+                            "total_recently_sold_selected": total_recently_sold,
                         }
+
 
                     else:
                         st.warning("Sales data not available or missing required columns.")
@@ -1010,61 +1064,11 @@ def step_3():
 def step_4():
     st.title("Step 4: Final Summary")
 
-    # Step 1 Summary
-    step1 = st.session_state.get("step_1_data")
-    if step1 and "table_data" in step1:
-        st.header("Step 1: PDF Extraction")
-        st.subheader("Milestone Table")
-        table_df = pd.DataFrame(step1["table_data"])
+    st.write('Upload the Bank Statement')
 
-        # Convert DataFrame to styled HTML table
-        styled_table_html = table_df.to_html(classes='custom-table', index=False)
+    uploaded_file = st.file_uploader("Upload bank statement", type="pdf")
 
-        # Inject custom CSS for styling
-        st.markdown("""
-            <style>
-            .custom-table {
-                border-collapse: collapse;
-                width: 100%;
-                font-family: Arial, sans-serif;
-                border-radius: 8px;
-                overflow: hidden;
-            }
-            .custom-table th, .custom-table td {
-                border: 1px solid #ddd;
-                padding: 10px;
-                text-align: left;
-                color: #333333;
-                background-color: #FFFFFF;
-            }
-            .custom-table th {
-                background-color: #E0E0E0;
-                font-weight: bold;
-            }
-            .custom-table tr:nth-child(even) {
-                background-color: #F5F5F5;
-            }
-            .custom-table tr:hover {
-                background-color: #D3E3FC;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-
-        # Display the styled table
-        st.markdown(styled_table_html, unsafe_allow_html=True)
-
-        if "conditions_precedent" in step1:
-            st.subheader("Selected Conditions Precedent")
-            for i, item in enumerate(st.session_state.get("selected_conditions_precedent", [])):
-                st.markdown(f"**{i+1}.** {item}")
-        if "conditions_subsequent" in step1:
-            st.subheader("Selected Conditions Subsequent")
-            for i, item in enumerate(st.session_state.get("selected_conditions_subsequent", [])):
-                st.markdown(f"**{i+1}.** {item}")
-    else:
-        st.warning("Step 1 data missing.")
-
-    # Step 2 Summary
+    # here I want to have an upload excel option
     step2 = st.session_state.get("step_2_data")
     if step2:
         st.header("Step 2: Excel Comparison")
@@ -1120,68 +1124,154 @@ def step_4():
                 promoter_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
                 bank_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
                 bank_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
+                total_a_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
+                total_a_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
 
+                
+
+                card_html = """
+                <style>
+                .card-container {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                    gap: 20px;
+                }
+                .card {
+                    flex: 0 0 32%;
+                    background-color: #ffffff;
+                    padding: 15px;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                    box-sizing: border-box;
+                    color: #333;
+                    font-family: Arial, sans-serif;
+                }
+                .card b {
+                    color: #000;
+                    font-size: 16px;
+                }
+                @media (max-width: 768px) {
+                    .card {
+                        flex: 0 0 100%;
+                    }
+                }
+                </style>
+                <div class="card-container">
+                """
+
+                # Create all the cards with values
+                cards = []
+
+                # 1 - Obligation
                 if bank_funds.size > 0:
                     value = float(bank_funds[0]) / 100.0
-                    st.markdown(f"""
-                        <div style="background-color: #F0F8FF; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; color: #333;">
-                            <b>Obligation:</b> ₹{value:.2f} Cr
-                        </div>
-                    """, unsafe_allow_html=True)
+                    cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Obligation:</b><br>₹{value:.2f} Cr</div>")
 
+                # 2 - Balance
                 if mean_of_finance.size > 0 and total_a.size > 0:
-                    value2 = float(mean_of_finance[0])
-                    value1 = float(total_a[0])
-                    value = value2 - value1
-                    st.markdown(f"""
-                        <div style="background-color: #FFF8E1; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; color: #333;">
-                            <b>Balance:</b> ₹{value:.2f} Cr
-                        </div>
-                    """, unsafe_allow_html=True)
+                    value = float(mean_of_finance[0]) - float(total_a[0])
+                    cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Balance:</b><br>₹{value:.2f} Cr</div>")
 
+                # 3 - Customer Advance Change
                 if cust_adv_2.size > 0 and cust_adv_1.size > 0:
-                    value2 = float(cust_adv_2[0])
-                    value1 = float(cust_adv_1[0])
-                    value = value2 - value1
-                    st.markdown(f"""
-                        <div style="background-color: #E8F5E9; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; color: #333;">
-                            <b>Change in Customer Advance:</b> ₹{value:.2f} Cr
-                        </div>
-                    """, unsafe_allow_html=True)
+                    value = float(cust_adv_2[0]) - float(cust_adv_1[0])
+                    cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Change in Customer Advance:</b><br>₹{value:.2f} Cr</div>")
 
+                # 4 - Promoter Funds Change
                 if promoter_funds_2.size > 0 and promoter_funds_1.size > 0:
-                    value2 = float(promoter_funds_2[0])
-                    value1 = float(promoter_funds_1[0])
-                    value = value2 - value1
-                    st.markdown(f"""
-                        <div style="background-color: #FBE9E7; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; color: #333;">
-                            <b>Change in Promoter Funds:</b> ₹{value:.2f} Cr
-                        </div>
-                    """, unsafe_allow_html=True)
+                    value = float(promoter_funds_2[0]) - float(promoter_funds_1[0])
+                    cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>Change in Promoter Funds:</b><br>₹{value:.2f} Cr</div>")
 
+                # 5 - Bank Funds Change
                 if bank_funds_2.size > 0 and bank_funds_1.size > 0:
-                    value2 = float(bank_funds_2[0])
-                    value1 = float(bank_funds_1[0])
-                    value = value2 - value1
-                    st.markdown(f"""
-                        <div style="background-color: #E3F2FD; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; color: #333;">
-                            <b>Change in Bank Funds:</b> ₹{value:.2f} Cr
-                        </div>
-                    """, unsafe_allow_html=True)
+                    value = float(bank_funds_2[0]) - float(bank_funds_1[0])
+                    cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Change in Bank Funds:</b><br>₹{value:.2f} Cr</div>")
+
+                # 6 - Total (A) Change
+                if total_a_2.size > 0 and total_a_1.size > 0:
+                    value = float(total_a_2[0]) - float(total_a_1[0])
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Change in Total (A):</b><br>₹{value:.2f} Cr</div>")
+
+                # Join the cards and close the container
+                card_html += "\n".join(cards) + "</div>"
+
+                # Inject into Streamlit
+                html(card_html, height=200)
+
 
     else:
         st.warning("Step 2 data missing.")
 
+    step2_data = st.session_state.get("step_2_data")
+
     # Step 3 Summary
-    sales = st.session_state.get("step_3_data")
-    if sales:
-        st.header("Step 3: Sales Summary")
-        for tower, flats in sales["selected_flats_by_tower"].items():
-            st.markdown(f"**Tower {tower} - Selected Flats:** {', '.join(flats)}")
-        st.markdown(f"**Total Flats Selected:** {sales.get('total_selected', 0)}")
-        st.markdown(f"**Total Flats Sold:** {sales.get('total_sold', 0)}")
-    else:
-        st.warning("Step 3 sales info missing.")
+    if "MIS" in step2_data and "df2" in step2_data["MIS"]:
+        df1 = step2_data["MIS"]["df2"]
+
+        sales = st.session_state.get("step_3_data")
+        if sales:
+            st.header("Step 3: Sales Information")
+            all_flats = []
+            c = 0
+            for tower, flats in sales["recently_sold_flats_by_tower"].items():
+                
+                for flat in flats:
+                    if c == 0:
+                        st.markdown(f"- **Per Sq.Ft rate of Tower {tower} and Flat {flat} is not as per business plan.**")
+                    c = 1
+                    all_flats.append({
+                        "Tower No": tower,
+                        "Flat no": flat,
+                        "Sold/Unsold": "Sold"
+                    })
+
+            for tower, flats in sales["recently_unsold_flats_by_tower"].items():
+                for flat in flats:
+                    all_flats.append({
+                        "Tower No": tower,
+                        "Flat no": flat,
+                        "Sold/Unsold": "Unsold"
+                    })
+
+            print(all_flats)
+
+
+            df2 = pd.DataFrame(all_flats)
+
+            if "Sold/Unsold" not in df1.columns:
+                st.error(f"'Sold/Unsold' column missing in previous MIS data.")
+                st.dataframe(df2, use_container_width=True, height=600)
+            else:
+                id_column = "Flat no"
+                comparison_df = df2.copy()
+                status_map = dict(zip(df1[id_column], df1["Sold/Unsold"].astype(str).str.strip()))
+
+                def highlight_rows(row):
+                    current_id = row[id_column]
+                    current_status = str(row["Sold/Unsold"]).strip().lower()
+                    previous_status = status_map.get(current_id, "").strip().lower()
+
+                    if previous_status and current_status != previous_status:
+                        if previous_status == "unsold" and current_status == "sold":
+                            # Darker green
+                            return ['background-color: #228B22; color: white'] * len(row)
+                        elif previous_status == "sold" and current_status == "unsold":
+                            # Darker red
+                            return ['background-color: #B22222; color: white'] * len(row)
+
+                    if current_status == "sold":
+                        # Lighter green
+                        return ['background-color: #DFFFD6; color: #333333'] * len(row)
+                    elif current_status == "unsold":
+                        # Lighter red
+                        return ['background-color: #FFD6D6; color: #333333'] * len(row)
+
+                    return ['background-color: #FFFFFF; color: #333333'] * len(row)
+                
+                styled_df = comparison_df[["Flat no", "Tower No", "Sold/Unsold"]].style.apply(highlight_rows, axis=1)
+                st.write(styled_df)
+
 
     st.button("Back", on_click=go_to_step, args=(3,))
 
