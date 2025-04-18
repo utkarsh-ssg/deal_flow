@@ -16,6 +16,7 @@ import hashlib
 import os
 import pickle
 from streamlit.components.v1 import html
+import requests
 
 CACHE_DIR = "pdf_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -338,6 +339,10 @@ div:has(> .stSubheader:contains("Payment Details")) + div [data-testid="stDataFr
         background-color: #D3E3FC !important;
         color: black !important;
     }
+    .main {
+        width: 80% !important;
+        margin: 0 auto;
+    }
 
     </style>
 """, unsafe_allow_html=True)
@@ -552,7 +557,7 @@ def main():
         step_4()
 
 def step_1():
-    st.title('Step 1: Developer Dashboard')
+    st.title('Developer Dashboard')
     st.write('Upload the Sanction Letter to extract relevant milestones and conditions.')
 
     uploaded_file = st.file_uploader("Upload sanction letter", type="pdf")
@@ -643,7 +648,7 @@ def step_1():
             if "table_data" in data:
                 st.subheader("Table Data:")
                 table_df = pd.DataFrame(data["table_data"])
-                
+
                 # Custom HTML table with inline styling
                 styled_table_html = table_df.to_html(classes='custom-table', index=False)
 
@@ -674,28 +679,31 @@ def step_1():
                 """, unsafe_allow_html=True)
 
                 st.markdown(styled_table_html, unsafe_allow_html=True)
-            
-            
 
-            if "pre_disbursement_conditions" in data:
-                st.write("Pre-Disbursement Conditions:")
-                for i, item in enumerate(data["pre_disbursement_conditions"]):
-                    st.write(f"{i+1}. {item}")
+                
+                milestone_options = table_df.iloc[:, 0].tolist()
+                selected_milestone = st.selectbox("Select a Milestone to view related conditions:", [""] + milestone_options)
 
-            if "conditions_precedent" in data:
-                st.write("Conditions Precedent:")
-                for i, item in enumerate(data["conditions_precedent"]):
-                    st.write(f"{i+1}. {item}")
-
-            if "conditions_subsequent" in data:
-                st.write("Conditions Subsequent with Frequency:")
-                for i, item in enumerate(data["conditions_subsequent"]):
-                    st.write(f"{i+1}. {item}")
+                if selected_milestone:
+                    if selected_milestone == milestone_options[0]:
+                        if "pre_disbursement_conditions" in data:
+                            st.subheader("Pre-Disbursement Conditions:")
+                            for i, item in enumerate(data["pre_disbursement_conditions"]):
+                                st.write(f"{i+1}. {item}")
+                    else:
+                        if "conditions_precedent" in data:
+                            st.subheader("Conditions Precedent:")
+                            for i, item in enumerate(data["conditions_precedent"]):
+                                st.write(f"{i+1}. {item}")
+                        if "conditions_subsequent" in data:
+                            st.subheader("Conditions Subsequent with Frequency:")
+                            for i, item in enumerate(data["conditions_subsequent"]):
+                                st.write(f"{i+1}. {item}")
 
             st.button("Next", on_click=go_to_step, args=(2,))
 
 def step_2():
-    st.title('Step 2: MIS Data')
+    st.title('MIS Data')
     st.write('Upload MIS files')
     
     # Upload both files
@@ -734,8 +742,8 @@ def step_2():
                         if id_column == df1.columns[0] and id_column not in possible_id_cols:
                             st.warning(f"Using '{id_column}' as identifier for comparison. Please ensure rows match correctly.")
     
-                        st.write("**Status Changes Legend:**")
-                        st.markdown("🟢 <span style='color:green'>Green</span>: Unsold → Sold &nbsp;&nbsp;&nbsp; 🔴 <span style='color:red'>Red</span>: Sold → Unsold", unsafe_allow_html=True)
+                        # st.write("**Status Changes Legend:**")
+                        # st.markdown("🟢 <span style='color:green'>Green</span>: Unsold → Sold &nbsp;&nbsp;&nbsp; 🔴 <span style='color:red'>Red</span>: Sold → Unsold", unsafe_allow_html=True)
     
                         comparison_df = df2.copy()
                         status_map = dict(zip(df1[id_column], df1["Sold/Unsold"].astype(str).str.strip()))
@@ -822,7 +830,7 @@ def step_2():
         st.button("Back", on_click=go_to_step, args=(1,))
 
 def step_3():
-    st.title('Step 3: Disbursement Request Form')
+    st.title('Disbursement Request Form')
     if st.session_state.step_1_data:
         data = st.session_state.step_1_data
 
@@ -1062,16 +1070,157 @@ def step_3():
         st.button("Next", on_click=go_to_step, args=(4,))
 
 def step_4():
-    st.title("Step 4: Final Summary")
+    st.title("Bank Statement Summary")
 
     st.write('Upload the Bank Statement')
 
+    UPLOAD_URL = "https://cartuat.com/api/upload"
+    DOWNLOAD_URL = "https://cartuat.com/api/downloadFile"
+    AUTH_TOKEN = "API://QFEreQJLUvIWHKSLliicNPOC/MYh9B7dCo95Chz2rT2Sgf9ihi53EpD8LigFS/tw"
+
     uploaded_file = st.file_uploader("Upload bank statement", type="pdf")
+
+    if uploaded_file is not None:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            tmp_file.write(uploaded_file.read())
+            tmp_file_path = tmp_file.name
+
+        st.success("File saved temporarily. Uploading...")
+
+        metadata = {
+            "password": "",
+            "bank": "Other",
+            "name": ""
+        }
+
+        document_details = [{
+            "groupCompany": "",
+            "accountNumber": "",
+            "accountType": "",
+            "internal": False,
+            "odCcLimit": "",
+            "organizationName": ""
+        }]
+
+        files = {
+            "file": open(tmp_file_path, "rb"),
+            "metadata": (None, json.dumps(metadata), "application/json"),
+            "documentDetails": (None, json.dumps(document_details), "application/json"),
+        }
+
+        headers = {
+            "Accept": "application/json",
+            "auth-token": AUTH_TOKEN
+        }
+
+        upload_response = requests.post(UPLOAD_URL, files=files, headers=headers)
+
+        if upload_response.status_code == 200:
+            st.success("File uploaded successfully!")
+
+            # Extract document ID
+            try:
+                doc_id = upload_response.json().get("docId")
+
+                if doc_id:
+                    time.sleep(10)
+                    download_headers = {
+                        "Accept": "application/json",
+                        "auth-token": AUTH_TOKEN,
+                        "Content-Type": "text/plain"
+                    }
+
+                    download_response = requests.post(
+                        DOWNLOAD_URL,
+                        headers=download_headers,
+                        data= doc_id
+                    )
+
+                    if download_response.status_code == 200:
+                        result = download_response.json()
+                        
+                        if "analysisData" in result['data'][0]:
+                            card_html = """
+                            <style>
+                            .card-container {
+                                display: flex;
+                                flex-wrap: wrap;
+                                justify-content: space-between;
+                                gap: 20px;
+                            }
+                            .card {
+                                flex: 0 0 32%;
+                                background-color: #ffffff;
+                                padding: 15px;
+                                border-radius: 12px;
+                                box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                                box-sizing: border-box;
+                                color: #333;
+                                font-family: Arial, sans-serif;
+                            }
+                            .card b {
+                                color: #000;
+                                font-size: 16px;
+                            }
+                            @media (max-width: 768px) {
+                                .card {
+                                    flex: 0 0 100%;
+                                }
+                            }
+                            </style>
+                            <div class="card-container">
+                            """
+
+                            
+                            cards = []
+                            analysis_data = result['data'][0]['analysisData']
+                            for item in analysis_data:
+                                month = item.get("month", "")
+                                credit_amount = item.get("creditTransactionsAmount", 0.0)
+                                credit_count = item.get("noOfCreditTransactions", 0)
+                                debit_amount = item.get("debitTransactionsAmount", 0)
+                                debit_count = item.get("noOfDebitTransactions", 0)
+                                net_balance = item.get("customAverageBalance", 0)
+                                emi_amount = item.get("totalEMIAmount", 0)
+                                
+
+                                cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Credit in {month}:</b><br>₹{credit_amount:.2f} Cr</div>")
+                                
+                                cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>No. of Credit Transaction:</b><br>₹{credit_count:.2f} Cr</div>")
+                                
+                                cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Debit Transaction in {month}:</b><br>₹{debit_amount:.2f} Cr</div>")
+
+                                cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>No. of Debit Transaction:</b><br>₹{debit_count:.2f} Cr</div>")
+
+                                cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Net Balance:</b><br>₹{net_balance:.2f} Cr</div>")
+                                
+                                cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Total EMI amount:</b><br>₹{emi_amount:.2f} Cr</div>")
+
+
+                            card_html += "\n".join(cards) + "</div>"
+
+                            html(card_html, height=400)
+
+
+                    else:
+                        st.error(f"Download failed. Status code: {download_response.status_code}")
+                        st.text(download_response.text)
+
+                else:
+                    st.error("Document ID not found in upload response.")
+
+            except Exception as e:
+                st.error("Failed to parse upload response.")
+                st.text(str(e))
+
+        else:
+            st.error(f"Upload failed. Status code: {upload_response.status_code}")
+            st.text(upload_response.text)
 
     # here I want to have an upload excel option
     step2 = st.session_state.get("step_2_data")
     if step2:
-        st.header("Step 2: Excel Comparison")
+        st.header("COP-MOF Data")
         for sheet, data in step2.items():
             if isinstance(data, dict) and sheet == "COP-MOF":
                 def render_styled_table(df, title):
@@ -1111,7 +1260,7 @@ def step_4():
 
                 # Render both tables
                 render_styled_table(data["df2"], f"{sheet} - COP-MOF Current")
-                render_styled_table(data["df1"], f"{sheet} - COP-MOF Previous")
+                # render_styled_table(data["df1"], f"{sheet} - COP-MOF Previous")
 
                 df1 = data['df1']
                 df2 = data['df2']
@@ -1160,40 +1309,40 @@ def step_4():
                 <div class="card-container">
                 """
 
-                # Create all the cards with values
+                
                 cards = []
 
-                # 1 - Obligation
+                
                 if bank_funds.size > 0:
                     value = float(bank_funds[0]) / 100.0
                     cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Obligation:</b><br>₹{value:.2f} Cr</div>")
 
-                # 2 - Balance
+                
                 if mean_of_finance.size > 0 and total_a.size > 0:
                     value = float(mean_of_finance[0]) - float(total_a[0])
                     cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Balance:</b><br>₹{value:.2f} Cr</div>")
 
-                # 3 - Customer Advance Change
+                
                 if cust_adv_2.size > 0 and cust_adv_1.size > 0:
                     value = float(cust_adv_2[0]) - float(cust_adv_1[0])
                     cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Change in Customer Advance:</b><br>₹{value:.2f} Cr</div>")
 
-                # 4 - Promoter Funds Change
+                
                 if promoter_funds_2.size > 0 and promoter_funds_1.size > 0:
                     value = float(promoter_funds_2[0]) - float(promoter_funds_1[0])
                     cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>Change in Promoter Funds:</b><br>₹{value:.2f} Cr</div>")
 
-                # 5 - Bank Funds Change
+                
                 if bank_funds_2.size > 0 and bank_funds_1.size > 0:
                     value = float(bank_funds_2[0]) - float(bank_funds_1[0])
                     cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Change in Bank Funds:</b><br>₹{value:.2f} Cr</div>")
 
-                # 6 - Total (A) Change
+                
                 if total_a_2.size > 0 and total_a_1.size > 0:
                     value = float(total_a_2[0]) - float(total_a_1[0])
                     cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Change in Total (A):</b><br>₹{value:.2f} Cr</div>")
 
-                # Join the cards and close the container
+                
                 card_html += "\n".join(cards) + "</div>"
 
                 # Inject into Streamlit
@@ -1205,13 +1354,13 @@ def step_4():
 
     step2_data = st.session_state.get("step_2_data")
 
-    # Step 3 Summary
+    
     if "MIS" in step2_data and "df2" in step2_data["MIS"]:
         df1 = step2_data["MIS"]["df2"]
 
         sales = st.session_state.get("step_3_data")
         if sales:
-            st.header("Step 3: Sales Information")
+            st.header("Sales Information")
             all_flats = []
             c = 0
             for tower, flats in sales["recently_sold_flats_by_tower"].items():
@@ -1234,14 +1383,16 @@ def step_4():
                         "Sold/Unsold": "Unsold"
                     })
 
-            print(all_flats)
-
 
             df2 = pd.DataFrame(all_flats)
+            required_cols = ["Flat no", "Tower No", "Sold/Unsold"]
+            missing_cols = [col for col in required_cols if col not in df2.columns]
 
-            if "Sold/Unsold" not in df1.columns:
-                st.error(f"'Sold/Unsold' column missing in previous MIS data.")
-                st.dataframe(df2, use_container_width=True, height=600)
+            if missing_cols:
+                st.write("No sales data to display")
+                # st.error(f"Missing columns in data: {missing_cols}")
+                # st.dataframe(df2, use_container_width=True, height=600)
+                pass
             else:
                 id_column = "Flat no"
                 comparison_df = df2.copy()
