@@ -339,10 +339,15 @@ div:has(> .stSubheader:contains("Payment Details")) + div [data-testid="stDataFr
         background-color: #D3E3FC !important;
         color: black !important;
     }
-    .main {
-        width: 80% !important;
-        margin: 0 auto;
+    .block-container {
+        max-width: 80% !important;
+        margin: auto;
+        padding-left: 2rem;
+        padding-right: 2rem;
+        padding-top: 0rem !important;  /* Reduce top padding */
+        margin-top: 2rem !important;  /* Optional: Pull content higher */
     }
+
 
     </style>
 """, unsafe_allow_html=True)
@@ -492,34 +497,50 @@ def create_excel(data):
             
             table_data = pd.DataFrame(data.get("table_data", []))
             
+            pre_disbursement_conditions = data.get("pre_disbursement_conditions", [])
             conditions_precedent = data.get("conditions_precedent", [])
             conditions_subsequent = data.get("conditions_subsequent", [])
-            
+
+            pre_disbursement_conditions_text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(pre_disbursement_conditions)])
             conditions_precedent_text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(conditions_precedent)])
             conditions_subsequent_text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(conditions_subsequent)])
-            
+
             if not table_data.empty:
-                table_data["Conditions Precedent"] = conditions_precedent_text
-                table_data["Conditions Subsequent with Frequency"] = conditions_subsequent_text
-            
+                cp_col = []
+                cs_col = []
+
+                for i in range(len(table_data)):
+                    print("fff")
+                    if i == 0:
+                        print("jkk")
+                        cp_col.append(pre_disbursement_conditions_text)
+                        cs_col.append("")
+                    else:
+                        cp_col.append(conditions_precedent_text)
+                        cs_col.append(conditions_subsequent_text)
+
+                table_data["Conditions Precedent"] = cp_col
+                table_data["Conditions Subsequent"] = cs_col
+
             table_data.to_excel(writer, sheet_name="Extracted Data", index=False)
-            
+
             conditions_df = pd.DataFrame({
                 "Conditions Precedent": pd.Series(conditions_precedent),
-                "Conditions Subsequent with Frequency": pd.Series(conditions_subsequent)
+                "Conditions Subsequent": pd.Series(conditions_subsequent)
             })
             conditions_df.to_excel(writer, sheet_name="Conditions Detail", index=False)
-            
+
             workbook = writer.book
             worksheet = writer.sheets["Extracted Data"]
-            
+
             wrap_format = workbook.add_format({'text_wrap': True, 'valign': 'top'})
             worksheet.set_column('F:G', 50, wrap_format)
-        
+
         return output.getvalue()
     except Exception as e:
         st.error(f"Error creating Excel file: {e}")
         return None
+
     
 def get_file_hash(file_bytes):
     return hashlib.md5(file_bytes).hexdigest()
@@ -646,7 +667,7 @@ def step_1():
             data = st.session_state["parsed_data"]
 
             if "table_data" in data:
-                st.subheader("Table Data:")
+                st.subheader("Sanction Letter Data:")
                 table_df = pd.DataFrame(data["table_data"])
 
                 # Custom HTML table with inline styling
@@ -682,7 +703,8 @@ def step_1():
 
                 
                 milestone_options = table_df.iloc[:, 0].tolist()
-                selected_milestone = st.selectbox("Select a Milestone to view related conditions:", [""] + milestone_options)
+                st.write("Select a Milestone to view related conditions:")
+                selected_milestone = st.selectbox("", [""] + milestone_options)
 
                 if selected_milestone:
                     if selected_milestone == milestone_options[0]:
@@ -696,7 +718,7 @@ def step_1():
                             for i, item in enumerate(data["conditions_precedent"]):
                                 st.write(f"{i+1}. {item}")
                         if "conditions_subsequent" in data:
-                            st.subheader("Conditions Subsequent with Frequency:")
+                            st.subheader("Conditions Subsequent:")
                             for i, item in enumerate(data["conditions_subsequent"]):
                                 st.write(f"{i+1}. {item}")
 
@@ -838,7 +860,8 @@ def step_3():
             # Dropdown for milestone selection
             table_df = pd.DataFrame(data["table_data"])
             milestone_options = [f"Milestone {i+1}" for i in range(len(table_df))]
-            selected_milestone = st.selectbox("Select a Milestone to proceed", ["-- Select --"] + milestone_options)
+            st.write(f"Select a Milestone to proceed")
+            selected_milestone = st.selectbox("", ["-- Select --"] + milestone_options)
 
             st.subheader("Table Data:")
 
@@ -895,31 +918,47 @@ def step_3():
                 st.markdown(f"**Project Description:** Residential Project")
                 st.markdown(f"**Requesting Party Details:** Rudra Housing Private Ltd")
 
-                if "conditions_precedent" in data:
-                    st.subheader("Conditions Precedent:")
-                    selected_cp = []
-                    for i, item in enumerate(data["conditions_precedent"]):
-                        col1, col2 = st.columns([0.9, 0.1])
-                        with col1:
-                            st.markdown(f"**{i+1}.** {item}")
-                        with col2:
-                            checked = st.checkbox("", key=f"cp_{i}", value=False)
-                        if checked:
-                            selected_cp.append(item)
-                    st.session_state["selected_conditions_precedent"] = selected_cp
+                if selected_milestone == milestone_options[0]:
+                     if "pre_disbursement_conditions" in data:
+                            st.subheader("Pre-Disbursement Conditions:")
+                            selected_pdc = []
+                            for i, item in enumerate(data["pre_disbursement_conditions"]):
+                                col1, col2 = st.columns([0.9, 0.1])
+                                with col1:
+                                    st.markdown(f"**{i+1}.** {item}")
+                                with col2:
+                                    checked = st.checkbox("", key=f"pdc_{i}", value=False)
+                                if checked:
+                                    selected_pdc.append(item)
+                            st.session_state["selected_pre_disbursement_conditions"] = selected_pdc
+                            
+                else:
 
-                if "conditions_subsequent" in data:
-                    st.subheader("Conditions Subsequent with Frequency:")
-                    selected_cs = []
-                    for i, item in enumerate(data["conditions_subsequent"]):
-                        col1, col2 = st.columns([0.9, 0.1])
-                        with col1:
-                            st.markdown(f"**{i+1}.** {item}")
-                        with col2:
-                            checked = st.checkbox("", key=f"cs_{i}", value=False)
-                        if checked:
-                            selected_cs.append(item)
-                    st.session_state["selected_conditions_subsequent"] = selected_cs
+                    if "conditions_precedent" in data:
+                        st.subheader("Conditions Precedent:")
+                        selected_cp = []
+                        for i, item in enumerate(data["conditions_precedent"]):
+                            col1, col2 = st.columns([0.9, 0.1])
+                            with col1:
+                                st.markdown(f"**{i+1}.** {item}")
+                            with col2:
+                                checked = st.checkbox("", key=f"cp_{i}", value=False)
+                            if checked:
+                                selected_cp.append(item)
+                        st.session_state["selected_conditions_precedent"] = selected_cp
+
+                    if "conditions_subsequent" in data:
+                        st.subheader("Conditions Subsequent:")
+                        selected_cs = []
+                        for i, item in enumerate(data["conditions_subsequent"]):
+                            col1, col2 = st.columns([0.9, 0.1])
+                            with col1:
+                                st.markdown(f"**{i+1}.** {item}")
+                            with col2:
+                                checked = st.checkbox("", key=f"cs_{i}", value=False)
+                            if checked:
+                                selected_cs.append(item)
+                        st.session_state["selected_conditions_subsequent"] = selected_cs
 
 
                 st.subheader("Loan Informations")
@@ -956,7 +995,7 @@ def step_3():
                         for tower in unique_towers:
                             st.markdown(f"<h4 style='color:#2C3E50; margin-bottom: 0;'>Tower: {tower}</h4>", unsafe_allow_html=True)
 
-                            with st.expander(f"Select Flats in Tower {tower}", expanded=True):
+                            with st.expander("", expanded=True):
                                 st.markdown("""
                                     <style>
                                         .streamlit-expanderHeader {
@@ -975,9 +1014,9 @@ def step_3():
                                     (sales_df["Tower No"] == tower) &
                                     (sales_df["Sold/Unsold"].str.lower() == "sold")
                                 ]["Flat no"].dropna().unique()
-
+                                st.write(f"Select Flats whose Sales got cancelled post latest MIS in Tower {tower}")
                                 selected_recently_unsold_flats = st.multiselect(
-                                    f"Select Sold Flats in Tower which went Unsold {tower}",
+                                    "",
                                     recently_unsold_flats,
                                     key=f"recently_unsold_flats_{tower}"
                                 )
@@ -987,9 +1026,10 @@ def step_3():
                                     (sales_df["Tower No"] == tower) &
                                     (sales_df["Sold/Unsold"].str.lower() == "unsold")
                                 ]["Flat no"].dropna().unique()
+                                st.write(f"Select Unsold Flats which were Sold post latest MIS in Tower {tower}")
 
                                 selected_recently_sold_flats = st.multiselect(
-                                    f"Select Unsold Flats in Tower which were Sold {tower}",
+                                    "",
                                     recently_sold_flats,
                                     key=f"unsold_flats_{tower}"
                                 )
@@ -1010,12 +1050,12 @@ def step_3():
                                 total_recently_unsold += recently_unsold_count
                                 total_recently_sold += recently_sold_count
 
-                                st.markdown(f"<div style='margin-top:10px; font-weight:bold;'>Recently Unsold Flats Selected: <span style='color:#007ACC'>{recently_unsold_count}</span></div>", unsafe_allow_html=True)
-                                st.markdown(f"<div style='font-weight:bold;'>Recently Sold Flats Selected: <span style='color:#28B463'>{recently_sold_count}</span></div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='margin-top:10px; font-weight:bold;'>Flats whose Sales got cancelled post current MIS: <span style='color:#007ACC'>{recently_unsold_count}</span></div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='font-weight:bold;'>Flats solds post current MIS: <span style='color:#28B463'>{recently_sold_count}</span></div>", unsafe_allow_html=True)
 
                         st.markdown("<hr style='border-top: 2px solid #bbb;'/>", unsafe_allow_html=True)
-                        st.markdown(f"<h4 style='color:#1A5276;'>Total Sold Flats Selected which went Unsold: <span style='color:#2E86C1'>{total_recently_unsold}</span></h4>", unsafe_allow_html=True)
-                        st.markdown(f"<h4 style='color:#145A32;'>Total Unsold Flats Selected which went Sold: <span style='color:#28B463'>{total_recently_sold}</span></h4>", unsafe_allow_html=True)
+                        st.markdown(f"<h4 style='color:#1A5276;'>Total Sold Flats whose sales got cancelled post latest MIS: <span style='color:#2E86C1'>{total_recently_unsold}</span></h4>", unsafe_allow_html=True)
+                        st.markdown(f"<h4 style='color:#145A32;'>Total Unsold Flats which went Sold post latest MIS: <span style='color:#28B463'>{total_recently_sold}</span></h4>", unsafe_allow_html=True)
 
                         st.session_state.step_3_data = {
                             "recently_unsold_flats_by_tower": recently_unsold_flats_by_tower,
@@ -1184,17 +1224,17 @@ def step_4():
                                 emi_amount = item.get("totalEMIAmount", 0)
                                 
 
-                                cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Credit in {month}:</b><br>₹{credit_amount:.2f} Cr</div>")
+                                cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Credit in {month}:</b><br>₹{credit_amount:.2f}</div>")
                                 
-                                cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>No. of Credit Transaction:</b><br>₹{credit_count:.2f} Cr</div>")
+                                cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>No. of Credit Transaction in {month}:</b><br>{int(credit_count)}</div>")
                                 
-                                cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Debit Transaction in {month}:</b><br>₹{debit_amount:.2f} Cr</div>")
+                                cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Debit Transaction in {month}:</b><br>₹{debit_amount:.2f}</div>")
 
-                                cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>No. of Debit Transaction:</b><br>₹{debit_count:.2f} Cr</div>")
+                                cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>No. of Debit Transaction in {month}:</b><br>{int(debit_count)}</div>")
 
-                                cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Net Balance:</b><br>₹{net_balance:.2f} Cr</div>")
+                                cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Net Balance in {month}:</b><br>₹{net_balance:.2f}</div>")
                                 
-                                cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Total EMI amount:</b><br>₹{emi_amount:.2f} Cr</div>")
+                                cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Total EMI amount in {month}:</b><br>₹{emi_amount:.2f}</div>")
 
 
                             card_html += "\n".join(cards) + "</div>"
