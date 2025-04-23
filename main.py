@@ -729,7 +729,7 @@ def step_2():
     st.write('Upload MIS files')
     
     # Upload both files
-    file1 = st.file_uploader("Upload Previous MIS", type=["xlsx"], key="file1")
+    file1 = st.file_uploader("Upload MIS", type=["xlsx"], key="file1")
     file2 = st.file_uploader("Upload Current MIS", type=["xlsx"], key="file2")
     
     if file1 and file2:
