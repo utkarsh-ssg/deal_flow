@@ -17,6 +17,7 @@ import os
 import pickle
 from streamlit.components.v1 import html
 import requests
+from openai import OpenAI
 
 CACHE_DIR = "pdf_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -413,6 +414,51 @@ def process_image_with_gemini(image):
     except Exception as e:
         st.error(f"Error processing image with Gemini API: {e}")
         return ""
+
+def process_image_for_title_report(image):
+    if not GOOGLE_API_KEY:
+        st.error("Gemini API key not found. Please check your .env file.")
+        return ""
+        
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    
+    with io.BytesIO() as output:
+        image.save(output, format="PNG")
+        image_bytes = output.getvalue()
+    
+    image_parts = [
+        {
+            "mime_type": "image/png",
+            "data": base64.b64encode(image_bytes).decode('utf-8')
+        }
+    ]
+    
+    prompt = """
+    Extract all text content from this land title search report image.
+    
+    Focus on accurately capturing:
+    - The complete 'Observation' or 'Observations' section (extremely important)
+    - All property details and legal descriptions
+    - Title information and history
+    - All encumbrances, liens, and mortgages
+    - Any references to supporting documents
+    - Any noted legal issues or restrictions
+    - All dates and monetary values exactly as they appear
+    
+    Preserve the original text formatting, paragraph structure, and section organization.
+    Include ALL text visible in the image, maintaining the exact wording.
+    Do not summarize or modify the content in any way.
+    """
+    
+    try:
+        response = model.generate_content(
+            [prompt, image_parts[0]],
+            generation_config={"temperature": 0.1}
+        )
+        return response.text
+    except Exception as e:
+        st.error(f"Error processing image with Gemini API: {e}")
+        return ""
     
 def extract_structured_data(full_text):
     if not GOOGLE_API_KEY:
@@ -489,6 +535,148 @@ def extract_structured_data(full_text):
     except Exception as e:
         st.error(f"Error extracting structured data: {e}")
         return ""
+    
+def extract_structured_summary_report(full_text):
+    open_ai_key = os.getenv("OPEN_AI_API_KEY")
+    if not open_ai_key:
+        st.error("OpenAI API key not found. Please check your .env file.")
+        return ""
+    
+    client = OpenAI(api_key=open_ai_key)
+    
+    prompt = f"""
+    You are a specialized legal document analyzer focusing on land title search reports.
+    
+    From the extracted Title Report text below:
+    \"\"\"{full_text}\"\"\"
+    
+    Return valid JSON in this exact format:
+    {{
+        "observation": "...",
+        "green_flags": ["..."],
+        "yellow_flags": ["..."],
+        "red_flags": ["..."],
+        "references": ["..."],
+        "encumbrances": ["..."]
+    }}
+    
+    SPECIFIC INSTRUCTIONS FOR OBSERVATION FIELD:
+    1. The "observation" field must contain EXACTLY the text found in the section labeled 'Observation', 'Observations', or any similar heading in the document.
+    2. Include the ENTIRE text from that section, preserving all original formatting and paragraphs.
+    3. Do NOT summarize or paraphrase this section - copy it VERBATIM.
+    4. If multiple observation sections exist, concatenate them in order.
+    5. If no section explicitly labeled as 'Observation' exists, look for functionally equivalent sections such as 'Summary', 'Findings', 'Title Summary', or 'Report Conclusion'.
+    6. Only as a last resort, if no such section can be found, provide a brief factual summary of the document's primary findings about the property title status.
+    
+    For the other fields:
+    - "green_flags": List positive findings that indicate a clear title
+    - "yellow_flags": List potential minor issues requiring attention
+    - "red_flags": List serious issues that may impede transfer or reduce value
+    - "references": Extract all supporting documents, case numbers, deed references, or legal citations
+    - "encumbrances": Extract all transaction history, liens, mortgages, easements, covenants, or charges
+    
+    IMPORTANT: Return ONLY valid JSON without any additional text, explanations, or markdown.
+    """
+    
+    try:
+        # First, let's do a separate call just to extract the Observation section
+        observation_prompt = f"""
+        You are a specialized legal document analyzer focusing on land title search reports.
+        
+        From the extracted Title Report text below:
+        \"\"\"{full_text}\"\"\"
+        
+        Your ONLY task is to find and extract the complete text from any section labeled 'Observation', 'Observations', 'Title Summary', 'Findings', 'Summary', or 'Report Conclusion'.
+        
+        Extract this section VERBATIM - do not summarize, paraphrase, or modify the text in any way.
+        Include the ENTIRE section including all paragraphs.
+        
+        If multiple such sections exist, concatenate them in order, separated by line breaks.
+        If no such section exists, respond with: "NO_EXPLICIT_OBSERVATION_SECTION_FOUND"
+        
+        Return ONLY the extracted text without any additional commentary, formatting, or explanation.
+        """
+        
+        observation_response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You extract specific sections from legal documents verbatim, without modification."},
+                {"role": "user", "content": observation_prompt}
+            ],
+            temperature=0.1
+        )
+        
+        extracted_observation = observation_response.choices[0].message.content.strip()
+        
+        # Now get the complete analysis with the extracted observation
+        if extracted_observation == "NO_EXPLICIT_OBSERVATION_SECTION_FOUND":
+            observation_instruction = "No explicit Observation section was found. Provide a brief factual summary of the main findings about the property title status."
+        else:
+            observation_instruction = f"Use EXACTLY this text for the observation field: \"{extracted_observation}\""
+        
+        complete_prompt = f"""
+        You are a specialized legal document analyzer focusing on land title search reports.
+        
+        From the extracted Title Report text below:
+        \"\"\"{full_text}\"\"\"
+        
+        Return valid JSON in this exact format:
+        {{
+            "observation": "...",
+            "green_flags": ["..."],
+            "yellow_flags": ["..."],
+            "red_flags": ["..."],
+            "references": ["..."],
+            "encumbrances": ["..."]
+        }}
+        
+        FOR THE OBSERVATION FIELD:
+        {observation_instruction}
+        
+        For the other fields:
+        - "green_flags": List positive findings that indicate a clear title
+        - "yellow_flags": List potential minor issues requiring attention
+        - "red_flags": List serious issues that may impede transfer or reduce value
+        - "references": Extract all supporting documents, case numbers, deed references, or legal citations
+        - "encumbrances": Extract all transaction history, liens, mortgages, easements, covenants, or charges
+        
+        IMPORTANT: Return ONLY valid JSON without any additional text, explanations, or markdown.
+        """
+        
+        complete_response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a specialized legal document analyzer that returns only valid JSON."},
+                {"role": "user", "content": complete_prompt}
+            ],
+            temperature=0.1
+        )
+        
+        json_response = complete_response.choices[0].message.content
+        
+        # Try to parse the JSON to validate it
+        try:
+            parsed_json = json.loads(json_response)
+            return json_response
+        except json.JSONDecodeError:
+            # If direct parsing fails, try to extract just the JSON part
+            import re
+            json_match = re.search(r'({.*})', json_response, re.DOTALL)
+            if json_match:
+                potential_json = json_match.group(1)
+                try:
+                    parsed_json = json.loads(potential_json)
+                    return potential_json
+                except json.JSONDecodeError:
+                    st.error("Could not parse JSON data from response.")
+                    return ""
+            else:
+                st.error("Could not find JSON data in response.")
+                return ""
+                
+    except Exception as e:
+        st.error(f"Error extracting structured data: {e}")
+        return ""
 
 def create_excel(data):
     try:
@@ -510,9 +698,7 @@ def create_excel(data):
                 cs_col = []
 
                 for i in range(len(table_data)):
-                    print("fff")
                     if i == 0:
-                        print("jkk")
                         cp_col.append(pre_disbursement_conditions_text)
                         cs_col.append("")
                     else:
@@ -576,6 +762,8 @@ def main():
         step_3()
     elif st.session_state.step == 4:
         step_4()
+    elif st.session_state.step == 5:
+        step_5()
 
 def step_1():
     st.title('Developer Dashboard')
@@ -1464,7 +1652,102 @@ def step_4():
                 st.write(styled_df)
 
 
-    st.button("Back", on_click=go_to_step, args=(3,))
+    col1, col2 = st.columns(2)
+    with col1:
+        st.button("Back", on_click=go_to_step, args=(3,))
+    with col2:
+        st.button("Next", on_click=go_to_step, args=(5,))
+
+
+def step_5():
+    st.title('Title Summary Report')
+    st.write('Upload the Title Report.')
+
+    uploaded_file = st.file_uploader("Upload title report", type="pdf")
+
+    if uploaded_file is not None:
+        pdf_bytes = uploaded_file.read()
+
+        with st.spinner('Processing PDF...'):
+            reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+            num_pages = len(reader.pages)
+            full_text = ""
+
+            progress_bar = st.progress(0)
+            for i in range(num_pages):
+                progress_bar.progress((i + 1) / num_pages)
+                image = convert_pdf_page_to_image(pdf_bytes, i)
+                page_text = process_image_for_title_report(image)
+                full_text += f"\n\n--- PAGE {i+1} ---\n\n{page_text}"
+                time.sleep(1)
+
+            json_data = extract_structured_summary_report(full_text)
+
+            print("json data", full_text)
+
+            try:
+                try:
+                    data = json.loads(json_data)
+                except:
+                    json_match = re.search(r'(\{.*\})', json_data, re.DOTALL)
+                    if json_match:
+                        clean_json = json_match.group(1)
+                        data = json.loads(clean_json)
+                    else:
+                        st.error("Could not parse JSON data from response.")
+                        st.text(json_data)
+                        return
+
+                st.session_state["full_text"] = full_text
+                st.session_state["json_data"] = json_data
+                st.session_state["parsed_data"] = data
+                st.session_state.step_5_data = data
+
+                summary = data.get("observation")
+                st.subheader("Summary of the Title Report")
+                if isinstance(summary, dict):
+                    st.json(summary)
+                elif isinstance(summary, str):
+                    st.markdown(f"<div style='background-color:#eef;padding:15px;border-radius:8px;'>{summary}</div>", unsafe_allow_html=True)
+                else:
+                    st.warning("Summary format is not recognized.")
+
+                def styled_flags(flags, color):
+                    if flags:
+                        for item in flags:
+                            st.markdown(
+                                f"""<div style="background-color:{color};padding:10px;border-radius:8px;margin-bottom:10px">
+                                {item}
+                                </div>""",
+                                unsafe_allow_html=True
+                            )
+
+                if data.get("green_flags"):
+                    st.subheader("Green Flags")
+                    styled_flags(data["green_flags"], "#d4edda")
+
+                if data.get("yellow_flags"):
+                    st.subheader("Yellow Flags")
+                    styled_flags(data["yellow_flags"], "#fff3cd")
+
+                if data.get("red_flags"):
+                    st.subheader("Red Flags")
+                    styled_flags(data["red_flags"], "#f8d7da")
+
+                if data.get("references"):
+                    st.subheader("Reference")
+                    styled_flags(data["references"], "#eef")
+
+                if data.get("encumberances"):
+                    st.subheader("Emcumberances")
+                    styled_flags(data["encumberances"], "#eef")
+
+            except Exception as e:
+                st.error(f"Error processing data: {str(e)}")
+                st.text(json_data)
+                return
+
+        
 
 
 # Run the app
