@@ -1658,37 +1658,45 @@ def step_4():
     with col2:
         st.button("Next", on_click=go_to_step, args=(5,))
 
-
 def step_5():
     st.title('Title Summary Report')
     st.write('Upload the Title Report.')
-
     uploaded_file = st.file_uploader("Upload title report", type="pdf")
-
+    
     if uploaded_file is not None:
+        # Generate a cache key based on file name and content
         pdf_bytes = uploaded_file.read()
-
-        with st.spinner('Processing PDF...'):
-            reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
-            num_pages = len(reader.pages)
-            full_text = ""
-
-            progress_bar = st.progress(0)
-            for i in range(num_pages):
-                progress_bar.progress((i + 1) / num_pages)
-                image = convert_pdf_page_to_image(pdf_bytes, i)
-                page_text = process_image_for_title_report(image)
-                full_text += f"\n\n--- PAGE {i+1} ---\n\n{page_text}"
-                time.sleep(1)
-
-            json_data = extract_structured_summary_report(full_text)
-
-            print("json data", full_text)
-
-            try:
+        file_hash = get_file_hash(pdf_bytes)
+        cache_key = f"title_report_{file_hash}"
+        
+        # Check if we have this report in cache
+        cached_data = load_from_cache(cache_key)
+        
+        if cached_data:
+            st.success("Loaded from cache. No reprocessing needed")
+            full_text = cached_data["full_text"]
+            json_data = cached_data["json_data"]
+            data = cached_data["parsed_data"]
+        else:
+            # Process the PDF if not in cache
+            with st.spinner('Processing PDF...'):
+                reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+                num_pages = len(reader.pages)
+                full_text = ""
+                progress_bar = st.progress(0)
+                
+                for i in range(num_pages):
+                    progress_bar.progress((i + 1) / num_pages)
+                    image = convert_pdf_page_to_image(pdf_bytes, i)
+                    page_text = process_image_for_title_report(image)
+                    full_text += f"\n\n--- PAGE {i+1} ---\n\n{page_text}"
+                    time.sleep(1)
+                
+                json_data = extract_structured_summary_report(full_text)
+                
                 try:
                     data = json.loads(json_data)
-                except:
+                except json.JSONDecodeError:
                     json_match = re.search(r'(\{.*\})', json_data, re.DOTALL)
                     if json_match:
                         clean_json = json_match.group(1)
@@ -1697,55 +1705,64 @@ def step_5():
                         st.error("Could not parse JSON data from response.")
                         st.text(json_data)
                         return
-
-                st.session_state["full_text"] = full_text
-                st.session_state["json_data"] = json_data
-                st.session_state["parsed_data"] = data
-                st.session_state.step_5_data = data
-
-                summary = data.get("observation")
-                st.subheader("Summary of the Title Report")
-                if isinstance(summary, dict):
-                    st.json(summary)
-                elif isinstance(summary, str):
-                    st.markdown(f"<div style='background-color:#eef;padding:15px;border-radius:8px;'>{summary}</div>", unsafe_allow_html=True)
-                else:
-                    st.warning("Summary format is not recognized.")
-
-                def styled_flags(flags, color):
-                    if flags:
-                        for item in flags:
-                            st.markdown(
-                                f"""<div style="background-color:{color};padding:10px;border-radius:8px;margin-bottom:10px">
-                                {item}
-                                </div>""",
-                                unsafe_allow_html=True
-                            )
-
-                if data.get("green_flags"):
-                    st.subheader("Green Flags")
-                    styled_flags(data["green_flags"], "#d4edda")
-
-                if data.get("yellow_flags"):
-                    st.subheader("Yellow Flags")
-                    styled_flags(data["yellow_flags"], "#fff3cd")
-
-                if data.get("red_flags"):
-                    st.subheader("Red Flags")
-                    styled_flags(data["red_flags"], "#f8d7da")
-
-                if data.get("references"):
-                    st.subheader("Reference")
-                    styled_flags(data["references"], "#eef")
-
-                if data.get("encumberances"):
-                    st.subheader("Emcumberances")
-                    styled_flags(data["encumberances"], "#eef")
-
-            except Exception as e:
-                st.error(f"Error processing data: {str(e)}")
-                st.text(json_data)
-                return
+                
+                # Save the processed data to cache
+                save_to_cache(cache_key, {
+                    "full_text": full_text,
+                    "json_data": json_data,
+                    "parsed_data": data
+                })
+        
+        # Store in session state
+        st.session_state["full_text"] = full_text
+        st.session_state["json_data"] = json_data
+        st.session_state["parsed_data"] = data
+        st.session_state.step_5_data = data
+        
+        # Display the results
+        summary = data.get("observation")
+        st.subheader("Summary of the Title Report")
+        if isinstance(summary, dict):
+            st.json(summary)
+        elif isinstance(summary, str):
+            st.markdown(f"<div style='background-color:#eef;padding:15px;border-radius:8px;'>{summary}</div>", unsafe_allow_html=True)
+        else:
+            st.warning("Summary format is not recognized.")
+        
+        def styled_flags(flags, color):
+            if flags:
+                for item in flags:
+                    st.markdown(
+                        f"""<div style="background-color:{color};padding:10px;border-radius:8px;margin-bottom:10px">
+                            {item}
+                        </div>""",
+                        unsafe_allow_html=True
+                    )
+        
+        if data.get("green_flags"):
+            st.subheader("Green Flags")
+            styled_flags(data["green_flags"], "#d4edda")
+        
+        if data.get("yellow_flags"):
+            st.subheader("Yellow Flags")
+            styled_flags(data["yellow_flags"], "#fff3cd")
+        
+        if data.get("red_flags"):
+            st.subheader("Red Flags")
+            styled_flags(data["red_flags"], "#f8d7da")
+        
+        if data.get("references"):
+            st.subheader("References")
+            styled_flags(data["references"], "#eef")
+        
+        # Fix typo in key and section header
+        if data.get("encumbrances"):
+            st.subheader("Encumbrances")
+            styled_flags(data["encumbrances"], "#eef")
+        # Fallback for potential spelling inconsistency
+        elif data.get("encumberances"):
+            st.subheader("Encumbrances")
+            styled_flags(data["encumberances"], "#eef")
 
         
 
