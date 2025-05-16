@@ -14,27 +14,11 @@ import json
 import re
 import hashlib
 import os
-import pickle
 from streamlit.components.v1 import html
 import requests
 from openai import OpenAI
+from utils.utils import *
 
-CACHE_DIR = "pdf_cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
-
-def get_cache_path(file_hash):
-    return os.path.join(CACHE_DIR, f"{file_hash}.pkl")
-
-def save_to_cache(file_hash, data_dict):
-    with open(get_cache_path(file_hash), "wb") as f:
-        pickle.dump(data_dict, f)
-
-def load_from_cache(file_hash):
-    try:
-        with open(get_cache_path(file_hash), "rb") as f:
-            return pickle.load(f)
-    except FileNotFoundError:
-        return None
 
 
 # Load environment variables
@@ -42,316 +26,20 @@ load_dotenv()
 
 # Configure Google Gemini API
 GOOGLE_API_KEY = os.getenv('GEMINI_API_KEY')
+OPENAI_API_KEY = os.getenv('OPEN_AI_API_KEY')
+
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
 
 # Page setup - Set to light mode
 st.set_page_config(page_title="Developer Dashboard", layout="wide")
 
-# Apply consistent light gray theme with targeted fixes for remaining black backgrounds
-st.markdown("""
-    <style>
-    .stApp {
-        background-color: #F0F2F5;
-        color: #333333;
-    }
+def load_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-    /* Hide header/footer */
-    header, footer, .css-18e3th9 { visibility: hidden; height: 0px; }
-
-    /* Set text color to dark gray by default for better contrast on gray background */
-    .stMarkdown, .stTextInput, .stFileUploader, .stSelectbox, .stButton, .stDataFrame, .stTabs, .stText, .stTextLabel {
-        color: #333333 !important;
-    }
-
-    /* Fix tab header text */
-    .stTabs [data-baseweb="tab"] {
-        color: #333333 !important;
-    }
-
-    /* Info/warning/error box text - ensure they remain visible against their backgrounds */
-    .element-container .stAlert p {
-        color: #333333 !important;
-    }
-    .stAlert.stAlert-info {
-        background-color: #E8F0FE !important;
-        border-color: #4285F4 !important;
-    }
-    .stAlert.stAlert-warning {
-        background-color: #FFF8E1 !important;
-        border-color: #FFA000 !important;
-    }
-    .stAlert.stAlert-error {
-        background-color: #FFEBEE !important;
-        border-color: #E53935 !important;
-        color: #940000 !important;
-    }
-    /* Make error text darker for better visibility on pink background */
-    .stAlert.stAlert-error p {
-        color: #940000 !important;
-    }
-
-    /* File uploader styling - FIX FOR BROWSE FILES BUTTON */
-    .stFileUploader > label > div {
-        color: #333333 !important;
-        background-color: #F0F2F5 !important;
-    }
-    .stFileUploader [data-testid="stFileUploaderDropzone"] {
-        background-color: #FFFFFF !important;
-        border: 1px dashed #CCCCCC !important;
-    }
-    /* Specifically target the Browse Files button */
-    .stFileUploader [data-testid="stFileUploaderDropzone"] button {
-        background-color: #4285F4 !important;
-        color: white !important;
-    }
-    
-    /* Button styling - light blue instead of dark */
-    .stButton > button {
-        background-color: #4285F4;
-        color: white !important;
-        font-weight: bold;
-        border-radius: 4px;
-        padding: 0.5rem 1rem;
-        border: none;
-    }
-    .stButton > button:hover {
-        background-color: #3367D6;
-    }
-    
-    /* Download button styling */
-    .stDownloadButton > button {
-        background-color: #4CAF50 !important;
-        color: white !important;
-        font-weight: bold;
-        border-radius: 4px;
-        padding: 0.5rem 1rem;
-        border: none;
-    }
-    .stDownloadButton > button:hover {
-        background-color: #45a049 !important;
-    }
-    
-    /* Progress bar */
-    .stProgress > div > div {
-        background-color: #4285F4;
-    }
-
-    /* DataFrame styling - FIX FOR TABLE BACKGROUNDS */
-    .dataframe {
-        background-color: #FFFFFF !important;
-        border-color: #DDDDDD !important;
-    }
-    .dataframe th {
-        background-color: #EAEEF2 !important;
-        color: #333333 !important;
-        border-color: #DDDDDD !important;
-    }
-    .dataframe td {
-        background-color: #FFFFFF !important;
-        color: #333333 !important;
-        border-color: #DDDDDD !important;
-    }
-    /* Ensure table cells and borders don't have black colors */
-    table, th, td {
-        border-color: #DDDDDD !important;
-    }
-    
-    /* Select box styling - FIX FOR MILESTONE DROPDOWN */
-    .stSelectbox [data-baseweb="select"] {
-        background-color: #FFFFFF !important;
-    }
-    .stSelectbox [data-baseweb="popover"] {
-        background-color: #FFFFFF !important;
-    }
-    .stSelectbox [data-baseweb="menu"] {
-        background-color: #FFFFFF !important;
-    }
-    .stSelectbox [data-baseweb="option"] {
-        background-color: #FFFFFF !important;
-        color: #333333 !important;
-    }
-    .stSelectbox [data-baseweb="option"]:hover {
-        background-color: #F0F2F5 !important;
-    }
-    
-    /* Multiselect styling */
-    .stMultiSelect [data-baseweb="select"] {
-        background-color: #FFFFFF !important;
-    }
-    .stMultiSelect [data-baseweb="popover"] {
-        background-color: #FFFFFF !important;
-    }
-    .stMultiSelect [data-baseweb="menu"] {
-        background-color: #FFFFFF !important;
-    }
-    .stMultiSelect [data-baseweb="option"] {
-        background-color: #FFFFFF !important;
-        color: #333333 !important;
-    }
-    
-    /* Fix background color for all tables */
-    div[data-testid="stTable"] {
-        background-color: #FFFFFF !important;
-    }
-    div[data-testid="stTable"] table {
-        background-color: #FFFFFF !important;
-    }
-    div[data-testid="stTable"] th {
-        background-color: #EAEEF2 !important;
-        color: #333333 !important;
-        border-color: #DDDDDD !important;
-    }
-    div[data-testid="stTable"] td {
-        background-color: #FFFFFF !important;
-        color: #333333 !important;
-        border-color: #DDDDDD !important;
-    }
-    
-    /* Fix for expanders */
-    .streamlit-expanderHeader {
-        background-color: #F5F7FA !important;
-        color: #333333 !important;
-    }
-    .streamlit-expanderContent {
-        background-color: #FFFFFF !important;
-    }
-    
-    /* Fix for checkboxes */
-    .stCheckbox {
-        color: #333333 !important;
-    }
-    
-    /* Fix for text input */
-    .stTextInput [data-baseweb="input"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    /* Fix for tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        background-color: #E8E8E8 !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #F5F7FA !important;
-    }
-    .stTabs [data-baseweb="tab"][aria-selected="true"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    /* Payment Details table fix */
-    div:has(> .stSubheader:contains("Payment Details")) + div [data-testid="stDataFrame"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    /* Project Detail Data table fix */
-    div:has(> .stSubheader:contains("Project Detail Data")) + div [data-testid="stDataFrame"],
-    div:has(> .stSubheader:contains("MIS Data")) + div [data-testid="stDataFrame"],
-    div:has(> .stSubheader:contains("COP-MOF Data")) + div [data-testid="stDataFrame"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    /* Fix for Step 4 tables */
-    div:has(> .stHeader:contains("Step 4")) [data-testid="stDataFrame"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    /* Override any inline styles with !important */
-    [style*="background-color: black"],
-    [style*="background-color:#000000"],
-    [style*="background: black"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    [style*="color: black"],
-    [style*="color:#000000"] {
-        color: #333333 !important;
-    }
-[data-testid="stDataFrame"] .ag-root-wrapper,
-[data-testid="stDataFrame"] .ag-root,
-[data-testid="stDataFrame"] .ag-header,
-[data-testid="stDataFrame"] .ag-body-viewport,
-[data-testid="stDataFrame"] .ag-center-cols-container,
-[data-testid="stDataFrame"] .ag-pinned-left-cols-container,
-[data-testid="stDataFrame"] .ag-row,
-[data-testid="stDataFrame"] .ag-cell {
-    background-color: #FFFFFF !important;
-    color: #333333 !important;
-}
-
-/* Header background & text */
-[data-testid="stDataFrame"] .ag-header-cell,
-[data-testid="stDataFrame"] .ag-header-cell-label {
-    background-color: #E0E0E0 !important;
-    color: #000000 !important;
-    font-weight: 600 !important;
-}
-
-/* Fix pinned left column (serial numbers) */
-[data-testid="stDataFrame"] .ag-pinned-left-cols-container .ag-cell {
-    background-color: #F0F0F0 !important;
-    color: #000000 !important;
-    font-weight: bold !important;
-}
-
-/* Zebra striping for rows */
-[data-testid="stDataFrame"] .ag-row:nth-child(even) .ag-cell {
-    background-color: #F8F9FB !important;
-}
-
-/* Hover effect */
-[data-testid="stDataFrame"] .ag-row-hover .ag-cell {
-    background-color: #D3E3FC !important;
-}
-
-/* Scrollbar wrapper fix */
-[data-testid="stDataFrame"] .ag-body-horizontal-scroll,
-[data-testid="stDataFrame"] .ag-horizontal-left-spacer {
-    background-color: #FFFFFF !important;
-}
-
-/* Override Streamlit injected styles (dark theme) */
-html[data-theme="dark"] [data-testid="stDataFrame"] * {
-    background-color: #FFFFFF !important;
-    color: #000000 !important;
-}
-div:has(> .stSubheader:contains("Payment Details")) + div [data-testid="stDataFrame"] {
-        background-color: #FFFFFF !important;
-        color: #333333 !important;
-        border-radius: 10px;
-        padding: 10px;
-    }
-
-    div:has(> .stSubheader:contains("Payment Details")) + div [data-testid="stDataFrame"] * {
-        background-color: #FFFFFF !important;
-        color: #333333 !important;
-    }
-
-    div:has(> .stSubheader:contains("Payment Details")) + div [data-testid="stDataFrame"] thead {
-        background-color: #E0E0E0 !important;
-        color: black !important;
-        font-weight: bold;
-    }
-
-    div:has(> .stSubheader:contains("Payment Details")) + div [data-testid="stDataFrame"] tbody tr:nth-child(even) {
-        background-color: #F5F5F5 !important;
-    }
-
-    div:has(> .stSubheader:contains("Payment Details")) + div [data-testid="stDataFrame"] tbody tr:hover {
-        background-color: #D3E3FC !important;
-        color: black !important;
-    }
-    .block-container {
-        max-width: 80% !important;
-        margin: auto;
-        padding-left: 2rem;
-        padding-right: 2rem;
-        padding-top: 0rem !important;  /* Reduce top padding */
-        margin-top: 2rem !important;  /* Optional: Pull content higher */
-    }
-
-
-    </style>
-""", unsafe_allow_html=True)
+# Load the CSS
+load_css("style.css")
 
 # Initialize session state
 if 'step' not in st.session_state:
@@ -373,46 +61,41 @@ def convert_pdf_page_to_image(pdf_bytes, page_num):
     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
     return img
 
-def process_image_with_gemini(image):
-    if not GOOGLE_API_KEY:
-        st.error("Gemini API key not found. Please check your .env file.")
+
+def process_image_with_gemini(image: Image.Image) -> str:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    if not client.api_key:
+        st.error("OpenAI API key not found. Please check your environment variables.")
         return ""
-        
-    model = genai.GenerativeModel("gemini-1.5-flash")
     
-    with io.BytesIO() as output:
-        image.save(output, format="PNG")
-        image_bytes = output.getvalue()
-    
-    image_parts = [
-        {
-            "mime_type": "image/png",
-            "data": base64.b64encode(image_bytes).decode('utf-8')
-        }
-    ]
+    # Convert image to base64
+    with io.BytesIO() as buffer:
+        image.save(buffer, format="PNG")
+        base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
     
     prompt = """
-    Extract the text content from this image of a Housing Finance document.
-    Focus on capturing all table data, especially the sections on:
-    - Tranche disbursement details
-    - Cumulative Disbursement amounts
-    - Construction percentages
-    - Collection/Promoters' contributions
-    - Pre-Disbursement conditions
-    - Takeover conditions(Pre-disbursement and Disbursement)
-    - Covenants along with Timeline
-    
+    Extract the text content from this image.
     Return all the text content from the image, preserving the structure and relationships.
     """
     
     try:
-        response = model.generate_content(
-            [prompt, image_parts[0]],
-            generation_config={"temperature": 0.1}
+        # Using the updated model name - gpt-4o supports vision capabilities
+        response = client.chat.completions.create(
+            model="gpt-4o",  # Updated model
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+                    ]
+                }
+            ],
+            max_tokens=2000
         )
-        return response.text
+        return response.choices[0].message.content
     except Exception as e:
-        st.error(f"Error processing image with Gemini API: {e}")
+        st.error(f"Error processing image with OpenAI Vision API: {e}")
         return ""
 
 def process_image_for_title_report(image):
@@ -461,79 +144,84 @@ def process_image_for_title_report(image):
         return ""
     
 def extract_structured_data(full_text):
-    if not GOOGLE_API_KEY:
-        st.error("Gemini API key not found. Please check your .env file.")
+    if not OPENAI_API_KEY:
+        st.error("OpenAI API key not found. Please check your .env file.")
         return ""
         
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    client = OpenAI(api_key=OPENAI_API_KEY)
     
     prompt = f"""
-    From the following extracted text from TATA Capital Housing Finance documents:
-    
-    {full_text}
-    
-    Extract and organize the data into two parts:
-    
-    PART 1: Extract this table data with these columns aligned by row:
-    - Sr. No.
-    - Tranche Amount (Rs Cr)
-    - Cumulative Disbursement (Rs Cr)
-    - Construction % (Europa, Mynsa & Capella)
-    - Incremental Collection/Promoters' Contribution (Rs Cr)
-    
-    PART 2: Extract these as separate bullet point lists that apply to all rows:
-    - Pre-Disbursement Conditions: These are the "Pre-Disbursement" conditions for first loan
-    - Conditions Precedent: These are the "Takeover Conditions(pre-disbursement and disbursement)" for all other loan except first loan.
-    - Conditions Subsequent with Frequency: These are the "Covenants" with both the Covenant description and Timeline from the table only
-    
-    Return as valid JSON in this exact format:
-    {{
-      "table_data": [
+        From the following extracted text from TATA Capital Housing Finance documents:
+        
+        {full_text}
+        
+        Extract and organize the data into two parts:
+        
+        PART 1: Extract this table data with these columns aligned by row:
+        - Sr. No.
+        - Tranche Amount (Rs Cr)
+        - Cumulative Disbursement (Rs Cr)
+        - Construction % (Europa, Mynsa & Capella)
+        - Incremental Collection/Promoters' Contribution (Rs Cr)
+        
+        PART 2: Extract these as separate bullet point lists that apply to all rows:
+        - Pre-Disbursement Conditions: These are the "Pre-Disbursement" conditions for first loan
+        - Conditions Precedent: These are the "Takeover Conditions(pre-disbursement and disbursement separetely)" for all other loan except first loan.
+        - Conditions Subsequent with Frequency: These are the "Covenants" with both the Covenant and Timeline from the table. Fetch it as "Covenant" : "Timeline".
+        
+        Return as valid JSON in this exact format:
         {{
-          "Sr. No.": 1,
-          "Tranche Amount (Rs Cr)": 12.00,
-          "Cumulative Disbursement (Rs Cr)": 12.00,
-          "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed"": "",
-          "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": ""
-        }},
-        {{
-          "Sr. No.": 2,
-          "Tranche Amount (Rs Cr)": 5.00,
-          "Cumulative Disbursement (Rs Cr)": 17.00,
-          "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed": "10.00%",
-          "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": 5.00
-        }},
-        // more rows...
-      ],
-      "pre_disbursement_conditions": [
-        "Condition 1",
-        "Condition 2",
-        // more conditions...
-      ],
+        "table_data": [
+            {{
+            "Sr. No.": 1,
+            "Tranche Amount (Rs Cr)": 12.00,
+            "Cumulative Disbursement (Rs Cr)": 12.00,
+            "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed"": "",
+            "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": ""
+            }},
+            {{
+            "Sr. No.": 2,
+            "Tranche Amount (Rs Cr)": 5.00,
+            "Cumulative Disbursement (Rs Cr)": 17.00,
+            "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed": "10.00%",
+            "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": 5.00
+            }},
+            // more rows...
+        ],
+        "pre_disbursement_conditions": [
+            "Condition 1",
+            "Condition 2",
+            // more conditions...
+        ],
 
-      "conditions_precedent": [
-        "Condition 1",
-        "Condition 2",
-        // more conditions...
-      ],
-      "conditions_subsequent": [
-        "Covenant 1 - Timeline: Within X days...",
-        "Covenant 2 - Timeline: Quarterly...",
-        // more covenants...
-      ]
-    }}
-    
-    No explanations, no markdown formatting, just the JSON object.
-    """
+        "conditions_precedent": [
+            "Condition 1",
+            "Condition 2",
+            // more conditions...
+        ],
+        "conditions_subsequent": [
+            "Covenant 1 - Timeline: Within X days...",
+            "Covenant 2 - Timeline: Quarterly...",
+            // more covenants...
+        ]
+        }}
+        
+        No explanations, no markdown formatting, just the JSON object.
+        """
     
     try:
-        response = model.generate_content(
-            prompt,
-            generation_config={"temperature": 0.1}
+        response = client.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=4096
         )
-        return response.text
+        
+        return response.choices[0].message.content
     except Exception as e:
-        st.error(f"Error extracting structured data: {e}")
+        st.error(f"Error extracting structured data with OpenAI API: {e}")
         return ""
     
 def extract_structured_summary_report(full_text):
@@ -835,6 +523,9 @@ def step_1():
                     st.session_state["parsed_data"] = data
                     st.session_state["excel_data"] = excel_data
                     st.session_state.step_1_data = data
+
+                    with open("output.txt", "w", encoding='utf-8') as file:
+                        file.write(full_text)
 
                 except Exception as e:
                     st.error(f"Error processing data: {str(e)}")
