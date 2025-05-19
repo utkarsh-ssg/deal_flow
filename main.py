@@ -4,44 +4,30 @@ import PyPDF2
 import io
 import os
 import tempfile
-import base64
-import google.generativeai as genai
-from PIL import Image
-import fitz
 import time
 from dotenv import load_dotenv
 import json
 import re
-import hashlib
 import os
 from streamlit.components.v1 import html
 import requests
-from openai import OpenAI
 from utils.utils import *
 
-
-
-# Load environment variables
 load_dotenv()
 
-# Configure Google Gemini API
 GOOGLE_API_KEY = os.getenv('GEMINI_API_KEY')
 OPENAI_API_KEY = os.getenv('OPEN_AI_API_KEY')
 
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
 
-# Page setup - Set to light mode
 st.set_page_config(page_title="Developer Dashboard", layout="wide")
 
 def load_css(file_name):
     with open(file_name) as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Load the CSS
 load_css("style.css")
 
-# Initialize session state
+
 if 'step' not in st.session_state:
     st.session_state.step = 1
 if 'step_1_data' not in st.session_state:
@@ -53,405 +39,6 @@ if 'step_3_data' not in st.session_state:
 if 'file_hash' not in st.session_state:
     st.session_state.file_hash = None
 
-# Functions for PDF processing (Step 1)
-def convert_pdf_page_to_image(pdf_bytes, page_num):
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    page = doc.load_page(page_num)
-    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-    return img
-
-
-def process_image_with_gemini(image: Image.Image) -> str:
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    if not client.api_key:
-        st.error("OpenAI API key not found. Please check your environment variables.")
-        return ""
-    
-    # Convert image to base64
-    with io.BytesIO() as buffer:
-        image.save(buffer, format="PNG")
-        base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
-    
-    prompt = """
-    Extract the text content from this image.
-    Return all the text content from the image, preserving the structure and relationships.
-    """
-    
-    try:
-        # Using the updated model name - gpt-4o supports vision capabilities
-        response = client.chat.completions.create(
-            model="gpt-4o",  # Updated model
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
-                    ]
-                }
-            ],
-            max_tokens=2000
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        st.error(f"Error processing image with OpenAI Vision API: {e}")
-        return ""
-
-def process_image_for_title_report(image):
-    if not GOOGLE_API_KEY:
-        st.error("Gemini API key not found. Please check your .env file.")
-        return ""
-        
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    
-    with io.BytesIO() as output:
-        image.save(output, format="PNG")
-        image_bytes = output.getvalue()
-    
-    image_parts = [
-        {
-            "mime_type": "image/png",
-            "data": base64.b64encode(image_bytes).decode('utf-8')
-        }
-    ]
-    
-    prompt = """
-    Extract all text content from this land title search report image.
-    
-    Focus on accurately capturing:
-    - The complete 'Observation' or 'Observations' section (extremely important)
-    - All property details and legal descriptions
-    - Title information and history
-    - All encumbrances, liens, and mortgages
-    - Any references to supporting documents
-    - Any noted legal issues or restrictions
-    - All dates and monetary values exactly as they appear
-    
-    Preserve the original text formatting, paragraph structure, and section organization.
-    Include ALL text visible in the image, maintaining the exact wording.
-    Do not summarize or modify the content in any way.
-    """
-    
-    try:
-        response = model.generate_content(
-            [prompt, image_parts[0]],
-            generation_config={"temperature": 0.1}
-        )
-        return response.text
-    except Exception as e:
-        st.error(f"Error processing image with Gemini API: {e}")
-        return ""
-    
-def extract_structured_data(full_text):
-    if not OPENAI_API_KEY:
-        st.error("OpenAI API key not found. Please check your .env file.")
-        return ""
-        
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    
-    prompt = f"""
-        From the following extracted text from TATA Capital Housing Finance documents:
-        
-        {full_text}
-        
-        Extract and organize the data into two parts:
-        
-        PART 1: Extract this table data with these columns aligned by row:
-        - Sr. No.
-        - Tranche Amount (Rs Cr)
-        - Cumulative Disbursement (Rs Cr)
-        - Construction % (Europa, Mynsa & Capella)
-        - Incremental Collection/Promoters' Contribution (Rs Cr)
-        
-        PART 2: Extract these as separate bullet point lists that apply to all rows:
-        - Pre-Disbursement Conditions: These are the "Pre-Disbursement" conditions for first loan
-        - Conditions Precedent: These are the "Takeover Conditions(pre-disbursement and disbursement separetely)" for all other loan except first loan.
-        - Conditions Subsequent with Frequency: These are the "Covenants" with both the Covenant and Timeline from the table. Fetch it as "Covenant" : "Timeline".
-        
-        Return as valid JSON in this exact format:
-        {{
-        "table_data": [
-            {{
-            "Sr. No.": 1,
-            "Tranche Amount (Rs Cr)": 12.00,
-            "Cumulative Disbursement (Rs Cr)": 12.00,
-            "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed"": "",
-            "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": ""
-            }},
-            {{
-            "Sr. No.": 2,
-            "Tranche Amount (Rs Cr)": 5.00,
-            "Cumulative Disbursement (Rs Cr)": 17.00,
-            "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed": "10.00%",
-            "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": 5.00
-            }},
-            // more rows...
-        ],
-        "pre_disbursement_conditions": [
-            "Condition 1",
-            "Condition 2",
-            // more conditions...
-        ],
-
-        "conditions_precedent": [
-            "Condition 1",
-            "Condition 2",
-            // more conditions...
-        ],
-        "conditions_subsequent": [
-            "Covenant 1 - Timeline: Within X days...",
-            "Covenant 2 - Timeline: Quarterly...",
-            // more covenants...
-        ]
-        }}
-        
-        No explanations, no markdown formatting, just the JSON object.
-        """
-    
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.1,
-            max_tokens=4096
-        )
-        
-        return response.choices[0].message.content
-    except Exception as e:
-        st.error(f"Error extracting structured data with OpenAI API: {e}")
-        return ""
-    
-def extract_structured_summary_report(full_text):
-    open_ai_key = os.getenv("OPEN_AI_API_KEY")
-    if not open_ai_key:
-        st.error("OpenAI API key not found. Please check your .env file.")
-        return ""
-    
-    client = OpenAI(api_key=open_ai_key)
-    
-    prompt = f"""
-    You are a specialized legal document analyzer focusing on land title search reports.
-    
-    From the extracted Title Report text below:
-    \"\"\"{full_text}\"\"\"
-    
-    Return valid JSON in this exact format:
-    {{
-        "observation": "...",
-        "green_flags": ["..."],
-        "yellow_flags": ["..."],
-        "red_flags": ["..."],
-        "references": ["..."],
-        "encumbrances": ["..."]
-    }}
-    
-    SPECIFIC INSTRUCTIONS FOR OBSERVATION FIELD:
-    1. The "observation" field must contain EXACTLY the text found in the section labeled 'Observation', 'Observations', or any similar heading in the document.
-    2. Include the ENTIRE text from that section, preserving all original formatting and paragraphs.
-    3. Do NOT summarize or paraphrase this section - copy it VERBATIM.
-    4. If multiple observation sections exist, concatenate them in order.
-    5. If no section explicitly labeled as 'Observation' exists, look for functionally equivalent sections such as 'Summary', 'Findings', 'Title Summary', or 'Report Conclusion'.
-    6. Only as a last resort, if no such section can be found, provide a brief factual summary of the document's primary findings about the property title status.
-    
-    For the other fields:
-    - "green_flags": List positive findings that indicate a clear title
-    - "yellow_flags": List potential minor issues requiring attention
-    - "red_flags": List serious issues that may impede transfer or reduce value
-    - "references": Extract all supporting documents, case numbers, deed references, or legal citations
-    - "encumbrances": Extract all transaction history, liens, mortgages, easements, covenants, or charges
-    
-    IMPORTANT: Return ONLY valid JSON without any additional text, explanations, or markdown.
-    """
-    
-    try:
-        # First, let's do a separate call just to extract the Observation section
-        observation_prompt = f"""
-        You are a specialized legal document analyzer focusing on land title search reports.
-        
-        From the extracted Title Report text below:
-        \"\"\"{full_text}\"\"\"
-        
-        Your ONLY task is to find and extract the complete text from any section labeled 'Observation', 'Observations', 'Title Summary', 'Findings', 'Summary', or 'Report Conclusion'.
-        
-        Extract this section VERBATIM - do not summarize, paraphrase, or modify the text in any way.
-        Include the ENTIRE section including all paragraphs.
-        
-        If multiple such sections exist, concatenate them in order, separated by line breaks.
-        If no such section exists, respond with: "NO_EXPLICIT_OBSERVATION_SECTION_FOUND"
-        
-        Return ONLY the extracted text without any additional commentary, formatting, or explanation.
-        """
-        
-        observation_response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You extract specific sections from legal documents verbatim, without modification."},
-                {"role": "user", "content": observation_prompt}
-            ],
-            temperature=0.1
-        )
-        
-        extracted_observation = observation_response.choices[0].message.content.strip()
-        
-        # Now get the complete analysis with the extracted observation
-        if extracted_observation == "NO_EXPLICIT_OBSERVATION_SECTION_FOUND":
-            observation_instruction = "No explicit Observation section was found. Provide a brief factual summary of the main findings about the property title status."
-        else:
-            observation_instruction = f"Use EXACTLY this text for the observation field: \"{extracted_observation}\""
-        
-        complete_prompt = f"""
-        You are a specialized legal document analyzer focusing on land title search reports.
-        
-        From the extracted Title Report text below:
-        \"\"\"{full_text}\"\"\"
-        
-        Return valid JSON in this exact format:
-        {{
-            "observation": "...",
-            "green_flags": ["..."],
-            "yellow_flags": ["..."],
-            "red_flags": ["..."],
-            "references": ["..."],
-            "encumbrances": ["..."]
-        }}
-        
-        FOR THE OBSERVATION FIELD:
-        {observation_instruction}
-        
-        For the other fields:
-        - "green_flags": List positive findings that indicate a clear title
-        - "yellow_flags": List potential minor issues requiring attention
-        - "red_flags": List serious issues that may impede transfer or reduce value
-        - "references": Extract all supporting documents, case numbers, deed references, or legal citations
-        - "encumbrances": Extract all transaction history, liens, mortgages, easements, covenants, or charges
-        
-        IMPORTANT: Return ONLY valid JSON without any additional text, explanations, or markdown.
-        """
-        
-        complete_response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a specialized legal document analyzer that returns only valid JSON."},
-                {"role": "user", "content": complete_prompt}
-            ],
-            temperature=0.1
-        )
-        
-        json_response = complete_response.choices[0].message.content
-        
-        # Try to parse the JSON to validate it
-        try:
-            parsed_json = json.loads(json_response)
-            return json_response
-        except json.JSONDecodeError:
-            # If direct parsing fails, try to extract just the JSON part
-            import re
-            json_match = re.search(r'({.*})', json_response, re.DOTALL)
-            if json_match:
-                potential_json = json_match.group(1)
-                try:
-                    parsed_json = json.loads(potential_json)
-                    return potential_json
-                except json.JSONDecodeError:
-                    st.error("Could not parse JSON data from response.")
-                    return ""
-            else:
-                st.error("Could not find JSON data in response.")
-                return ""
-                
-    except Exception as e:
-        st.error(f"Error extracting structured data: {e}")
-        return ""
-
-def create_excel(data):
-    try:
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            
-            table_data = pd.DataFrame(data.get("table_data", []))
-            
-            pre_disbursement_conditions = data.get("pre_disbursement_conditions", [])
-            conditions_precedent = data.get("conditions_precedent", [])
-            conditions_subsequent = data.get("conditions_subsequent", [])
-
-            pre_disbursement_conditions_text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(pre_disbursement_conditions)])
-            conditions_precedent_text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(conditions_precedent)])
-            conditions_subsequent_text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(conditions_subsequent)])
-
-            if not table_data.empty:
-                cp_col = []
-                cs_col = []
-
-                for i in range(len(table_data)):
-                    if i == 0:
-                        cp_col.append(pre_disbursement_conditions_text)
-                        cs_col.append("")
-                    else:
-                        cp_col.append(conditions_precedent_text)
-                        cs_col.append(conditions_subsequent_text)
-
-                table_data["Conditions Precedent"] = cp_col
-                table_data["Conditions Subsequent"] = cs_col
-
-            table_data.to_excel(writer, sheet_name="Extracted Data", index=False)
-
-            conditions_df = pd.DataFrame({
-                "Conditions Precedent": pd.Series(conditions_precedent),
-                "Conditions Subsequent": pd.Series(conditions_subsequent)
-            })
-            conditions_df.to_excel(writer, sheet_name="Conditions Detail", index=False)
-
-            workbook = writer.book
-            worksheet = writer.sheets["Extracted Data"]
-
-            wrap_format = workbook.add_format({'text_wrap': True, 'valign': 'top'})
-            worksheet.set_column('F:G', 50, wrap_format)
-
-        return output.getvalue()
-    except Exception as e:
-        st.error(f"Error creating Excel file: {e}")
-        return None
-
-    
-def get_file_hash(file_bytes):
-    return hashlib.md5(file_bytes).hexdigest()
-
-def clean_dataframe(df):
-    df = df.dropna(how="all").dropna(axis=1, how="all")
-    df.columns = df.columns.astype(str).str.strip()
-
-    for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            df[col] = df[col].apply(
-                lambda x: "" if pd.isna(x)
-                else f"{int(x)}" if float(x).is_integer()
-                else f"{x:.2f}"
-            )
-        else:
-            df[col] = df[col].fillna("")
-
-    return df
-
-
-# Navigation functions
-def go_to_step(step_number):
-    st.session_state.step = step_number
-
-# Main app logic
-def main():
-    if st.session_state.step == 1:
-        step_1()
-    elif st.session_state.step == 2:
-        step_2()
-    elif st.session_state.step == 3:
-        step_3()
-    elif st.session_state.step == 4:
-        step_4()
-    elif st.session_state.step == 5:
-        step_5()
 
 def step_1():
     st.title('Developer Dashboard')
@@ -483,7 +70,7 @@ def step_1():
                 for i in range(num_pages):
                     progress_bar.progress((i + 1) / num_pages)
                     image = convert_pdf_page_to_image(pdf_bytes, i)
-                    page_text = process_image_with_gemini(image)
+                    page_text = process_image(image)
                     full_text += f"\n\n--- PAGE {i+1} ---\n\n{page_text}"
                     time.sleep(1)
 
@@ -549,7 +136,7 @@ def step_1():
                 st.subheader("Sanction Letter Data:")
                 table_df = pd.DataFrame(data["table_data"])
 
-                # Custom HTML table with inline styling
+                
                 styled_table_html = table_df.to_html(classes='custom-table', index=False)
 
                 st.markdown("""
@@ -607,7 +194,7 @@ def step_2():
     st.title('MIS Data')
     st.write('Upload MIS files')
     
-    # Upload both files
+    
     file1 = st.file_uploader("Upload MIS", type=["xlsx"], key="file1")
     file2 = st.file_uploader("Upload Current MIS", type=["xlsx"], key="file2")
     
@@ -636,7 +223,7 @@ def step_2():
                             comparison_results[sheet] = {"error": "Sold/Unsold column missing", "data": df2}
                             continue
     
-                        # Find ID column: prefer "Project ID", fallback to first column
+                        
                         possible_id_cols = ["Project ID", "Sl No.", "Sr. No.", "ID"]
                         id_column = next((col for col in possible_id_cols if col in df1.columns and col in df2.columns), df1.columns[0])
     
@@ -654,26 +241,23 @@ def step_2():
                             current_status = str(row["Sold/Unsold"]).strip().lower()
                             previous_status = status_map.get(current_id, "").strip().lower()
 
-                            # Status change highlighting
                             if previous_status and current_status != previous_status:
                                 if previous_status == "unsold" and current_status == "sold":
                                     return ['background-color: rgba(144, 238, 144, 0.6); color: #00500B'] * len(row)
                                 elif previous_status == "sold" and current_status == "unsold":
                                     return ['background-color: rgba(255, 99, 71, 0.6); color: #5C0000'] * len(row)
                             
-                            # Static status highlighting (lighter shades)
+                            
                             if current_status == "sold":
                                 return ['background-color: rgba(220, 255, 220, 0.6); color: #333333'] * len(row)
                             elif current_status == "unsold":
                                 return ['background-color: rgba(255, 230, 230, 0.6); color: #333333'] * len(row)
 
-                            # Default: white bg, dark gray text (no black)
                             return ['background-color: #FFFFFF; color: #333333'] * len(row)
     
                         styled_df = comparison_df.style.apply(highlight_rows, axis=1)
                         st.write(styled_df)
                         
-                        # Store the analysis results
                         comparison_results[sheet] = {
                             "df1": df1,
                             "df2": df2,
@@ -718,7 +302,7 @@ def step_2():
                     st.warning(f"'{sheet}' not found in the second file.")
                     comparison_results[sheet] = {"warning": f"'{sheet}' not found in the second file."}
         
-        # Store the results in session state
+        
         st.session_state.step_2_data = comparison_results
         
         col1, col2 = st.columns(2)
@@ -736,7 +320,6 @@ def step_3():
         data = st.session_state.step_1_data
 
         if "table_data" in data:
-            # Dropdown for milestone selection
             table_df = pd.DataFrame(data["table_data"])
             milestone_options = [f"Milestone {i+1}" for i in range(len(table_df))]
             st.write(f"Select a Milestone to proceed")
@@ -744,10 +327,8 @@ def step_3():
 
             st.subheader("Table Data:")
 
-            # Get index of selected milestone
             selected_index = milestone_options.index(selected_milestone) if selected_milestone != "-- Select --" else None
 
-            # Build custom styled HTML table
             styled_rows = []
             headers = "".join([f"<th>{col}</th>" for col in table_df.columns])
             styled_rows.append(f"<tr>{headers}</tr>")
@@ -787,9 +368,6 @@ def step_3():
             
 
             if selected_milestone != "-- Select --":
-                # st.subheader("Project Details")
-                # Try fetching project details from step_2_data
-                # step2 = st.session_state.get("step_2_data", {})
 
                 st.subheader("Project Informations")
                 st.markdown(f"**Project Name:** ABC Developer")
@@ -845,11 +423,9 @@ def step_3():
                 st.markdown(f"**Borrower Name:** Rudra Housing Private Ltd")
                 st.markdown(f"**Loan Amount:** 30Cr.")
 
-                # ========== SALES INFORMATION ==========
                 if "step_2_data" in st.session_state:
                     step2_data = st.session_state["step_2_data"]
 
-                    # Ensure the required sheet and columns exist
                     sales_df = None
                     for sheet_name, sheet_data in step2_data.items():
                         if isinstance(sheet_data, dict) and "df2" in sheet_data:
@@ -888,7 +464,6 @@ def step_3():
                                     </style>
                                 """, unsafe_allow_html=True)
 
-                                # Sold flats which went Unsold
                                 recently_unsold_flats = sales_df[
                                     (sales_df["Tower No"] == tower) &
                                     (sales_df["Sold/Unsold"].str.lower() == "sold")
@@ -900,7 +475,6 @@ def step_3():
                                     key=f"recently_unsold_flats_{tower}"
                                 )
 
-                                # Unsold flats which went Sold
                                 recently_sold_flats = sales_df[
                                     (sales_df["Tower No"] == tower) &
                                     (sales_df["Sold/Unsold"].str.lower() == "unsold")
@@ -913,7 +487,6 @@ def step_3():
                                     key=f"unsold_flats_{tower}"
                                 )
 
-                                # Combine total selected
                                 combined_selected = list(set(selected_recently_unsold_flats) | set(selected_recently_sold_flats))
                                 recently_unsold_flats_by_tower[tower] = selected_recently_unsold_flats
                                 recently_sold_flats_by_tower[tower] = selected_recently_sold_flats
@@ -948,7 +521,6 @@ def step_3():
                         st.warning("Sales data not available or missing required columns.")
 
 
-                # Dummy Payment Details
                 st.subheader("Payment Details")
                 payment_df = pd.DataFrame([
                     {"Name of the contractor": "Perera", "Amount": "2.3 Cr", "Supporting Document": "25 crs", "Bank Details": "Abc"},
@@ -958,14 +530,12 @@ def step_3():
                 st.dataframe(payment_df, use_container_width=True)
 
 
-                # Authorized Signatory Info
                 st.markdown("**Authorized Signatory (Print Name)** : John Smith")
                 st.markdown("**Signature** : _John Smith_")
                 st.markdown("**Date** : 12-Dec-2023")
 
                 st.markdown("---")
 
-                # Lender Info
                 st.subheader("Lender Information")
                 st.markdown("""
                 **Lender Contact Person** : Peter Shaw  
@@ -981,7 +551,7 @@ def step_3():
         st.warning("No PDF data extracted in Step 1.")
 
 
-    # Navigation Buttons
+    
     col1, col2 = st.columns(2)
     with col1:
         st.button("Back", on_click=go_to_step, args=(2,))
@@ -1037,7 +607,7 @@ def step_4():
         if upload_response.status_code == 200:
             st.success("File uploaded successfully!")
 
-            # Extract document ID
+            
             try:
                 doc_id = upload_response.json().get("docId")
 
@@ -1136,7 +706,7 @@ def step_4():
             st.error(f"Upload failed. Status code: {upload_response.status_code}")
             st.text(upload_response.text)
 
-    # here I want to have an upload excel option
+    
     step2 = st.session_state.get("step_2_data")
     if step2:
         st.header("COP-MOF Data")
@@ -1147,7 +717,7 @@ def step_4():
                     styled_html = df.to_html(classes='custom-table', index=False)
                     st.markdown(styled_html, unsafe_allow_html=True)
 
-                # Add styling once (only needed once in your script)
+                
                 st.markdown("""
                     <style>
                     .custom-table {
@@ -1177,9 +747,7 @@ def step_4():
                     </style>
                 """, unsafe_allow_html=True)
 
-                # Render both tables
                 render_styled_table(data["df2"], f"{sheet} - COP-MOF Current")
-                # render_styled_table(data["df1"], f"{sheet} - COP-MOF Previous")
 
                 df1 = data['df1']
                 df2 = data['df2']
@@ -1264,7 +832,7 @@ def step_4():
                 
                 card_html += "\n".join(cards) + "</div>"
 
-                # Inject into Streamlit
+                
                 html(card_html, height=200)
 
 
@@ -1324,17 +892,17 @@ def step_4():
 
                     if previous_status and current_status != previous_status:
                         if previous_status == "unsold" and current_status == "sold":
-                            # Darker green
+                            
                             return ['background-color: #228B22; color: white'] * len(row)
                         elif previous_status == "sold" and current_status == "unsold":
-                            # Darker red
+                            
                             return ['background-color: #B22222; color: white'] * len(row)
 
                     if current_status == "sold":
-                        # Lighter green
+                        
                         return ['background-color: #DFFFD6; color: #333333'] * len(row)
                     elif current_status == "unsold":
-                        # Lighter red
+                       
                         return ['background-color: #FFD6D6; color: #333333'] * len(row)
 
                     return ['background-color: #FFFFFF; color: #333333'] * len(row)
@@ -1355,12 +923,10 @@ def step_5():
     uploaded_file = st.file_uploader("Upload title report", type="pdf")
     
     if uploaded_file is not None:
-        # Generate a cache key based on file name and content
         pdf_bytes = uploaded_file.read()
         file_hash = get_file_hash(pdf_bytes)
         cache_key = f"title_report_{file_hash}"
         
-        # Check if we have this report in cache
         cached_data = load_from_cache(cache_key)
         
         if cached_data:
@@ -1369,7 +935,6 @@ def step_5():
             json_data = cached_data["json_data"]
             data = cached_data["parsed_data"]
         else:
-            # Process the PDF if not in cache
             with st.spinner('Processing PDF...'):
                 reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
                 num_pages = len(reader.pages)
@@ -1379,7 +944,7 @@ def step_5():
                 for i in range(num_pages):
                     progress_bar.progress((i + 1) / num_pages)
                     image = convert_pdf_page_to_image(pdf_bytes, i)
-                    page_text = process_image_for_title_report(image)
+                    page_text = process_image(image)
                     full_text += f"\n\n--- PAGE {i+1} ---\n\n{page_text}"
                     time.sleep(1)
                 
@@ -1397,20 +962,19 @@ def step_5():
                         st.text(json_data)
                         return
                 
-                # Save the processed data to cache
+                
                 save_to_cache(cache_key, {
                     "full_text": full_text,
                     "json_data": json_data,
                     "parsed_data": data
                 })
         
-        # Store in session state
         st.session_state["full_text"] = full_text
         st.session_state["json_data"] = json_data
         st.session_state["parsed_data"] = data
         st.session_state.step_5_data = data
         
-        # Display the results
+        
         summary = data.get("observation")
         st.subheader("Summary of the Title Report")
         if isinstance(summary, dict):
@@ -1446,18 +1010,30 @@ def step_5():
             st.subheader("References")
             styled_flags(data["references"], "#eef")
         
-        # Fix typo in key and section header
         if data.get("encumbrances"):
             st.subheader("Encumbrances")
             styled_flags(data["encumbrances"], "#eef")
-        # Fallback for potential spelling inconsistency
         elif data.get("encumberances"):
             st.subheader("Encumbrances")
             styled_flags(data["encumberances"], "#eef")
 
         
+def go_to_step(step_number):
+    st.session_state.step = step_number
 
 
-# Run the app
+def main():
+    if st.session_state.step == 1:
+        step_1()
+    elif st.session_state.step == 2:
+        step_2()
+    elif st.session_state.step == 3:
+        step_3()
+    elif st.session_state.step == 4:
+        step_4()
+    elif st.session_state.step == 5:
+        step_5()
+
+
 if __name__ == "__main__":
     main()
