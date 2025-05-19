@@ -199,7 +199,6 @@ def extract_structured_data(full_text):
         
         return response.choices[0].message.content
     except Exception as e:
-        st.error(f"Error extracting structured data with OpenAI API: {e}")
         return ""
 
 
@@ -218,7 +217,7 @@ def extract_structured_summary_report(full_text):
         Extract this section VERBATIM - do not summarize, paraphrase, or modify the text in any way.
         Include the ENTIRE section including all paragraphs.
         
-        If multiple such sections exist, concatenate them in order, separated by line breaks.
+ste        If multiple such sections exist, concatenate them in order, separated by line breaks.
         If no such section exists, respond with: "NO_EXPLICIT_OBSERVATION_SECTION_FOUND"
         
         Return ONLY the extracted text without any additional commentary, formatting, or explanation.
@@ -271,7 +270,7 @@ def extract_structured_summary_report(full_text):
         """
         
         complete_response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4-turbo",
             messages=[
                 {"role": "system", "content": "You are a specialized legal document analyzer that returns only valid JSON."},
                 {"role": "user", "content": complete_prompt}
@@ -293,14 +292,11 @@ def extract_structured_summary_report(full_text):
                     parsed_json = json.loads(potential_json)
                     return potential_json
                 except json.JSONDecodeError:
-                    st.error("Could not parse JSON data from response.")
                     return ""
             else:
-                st.error("Could not find JSON data in response.")
                 return ""
                 
     except Exception as e:
-        st.error(f"Error extracting structured data: {e}")
         return ""
 
 
@@ -351,7 +347,6 @@ def create_excel(data):
 
         return output.getvalue()
     except Exception as e:
-        st.error(f"Error creating Excel file: {e}")
         return None
 
 

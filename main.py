@@ -2,21 +2,16 @@ import streamlit as st
 import pandas as pd
 import PyPDF2
 import io
-import os
 import tempfile
 import time
 from dotenv import load_dotenv
 import json
 import re
-import os
 from streamlit.components.v1 import html
 import requests
 from utils.utils import *
 
 load_dotenv()
-
-GOOGLE_API_KEY = os.getenv('GEMINI_API_KEY')
-OPENAI_API_KEY = os.getenv('OPEN_AI_API_KEY')
 
 
 st.set_page_config(page_title="Developer Dashboard", layout="wide")
@@ -942,7 +937,7 @@ def step_5():
                 progress_bar = st.progress(0)
                 
                 for i in range(num_pages):
-                    progress_bar.progress((i + 1) / num_pages)
+                    progress_bar.progress((i) / num_pages)
                     image = convert_pdf_page_to_image(pdf_bytes, i)
                     page_text = process_image(image)
                     full_text += f"\n\n--- PAGE {i+1} ---\n\n{page_text}"
