@@ -217,7 +217,7 @@ def extract_structured_summary_report(full_text):
         Extract this section VERBATIM - do not summarize, paraphrase, or modify the text in any way.
         Include the ENTIRE section including all paragraphs.
         
-ste        If multiple such sections exist, concatenate them in order, separated by line breaks.
+        If multiple such sections exist, concatenate them in order, separated by line breaks.
         If no such section exists, respond with: "NO_EXPLICIT_OBSERVATION_SECTION_FOUND"
         
         Return ONLY the extracted text without any additional commentary, formatting, or explanation.
