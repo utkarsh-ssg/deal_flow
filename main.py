@@ -937,7 +937,7 @@ def step_5():
                 progress_bar = st.progress(0)
                 
                 for i in range(num_pages):
-                    progress_bar.progress((i) / num_pages)
+                    progress_bar.progress((i+1) / num_pages)
                     image = convert_pdf_page_to_image(pdf_bytes, i)
                     page_text = process_image(image)
                     full_text += f"\n\n--- PAGE {i+1} ---\n\n{page_text}"
@@ -1012,12 +1012,432 @@ def step_5():
             st.subheader("Encumbrances")
             styled_flags(data["encumberances"], "#eef")
 
+    col1, col2 = st.columns(2)
+    with col1:
+        st.button("Back", on_click=go_to_step, args=(4,))
+    with col2:
+        st.button("Next", on_click=go_to_step, args=(6,))
+
+def step_6():
+    st.title('Lease Rental Document')
+    st.write('Upload the first LRD.')
+    uploaded_file1 = st.file_uploader("Upload first LRD", type="pdf")
+    st.write('Upload the second LRD.')
+    uploaded_file2 = st.file_uploader("Upload second LRD", type="pdf")
+    st.write('Upload the third LRD.')
+    uploaded_file3 = st.file_uploader("Upload third LRD", type="pdf")
+    if uploaded_file1 and uploaded_file2 and uploaded_file3:
+        pdf_bytes1 = uploaded_file1.read()
+        pdf_bytes2 = uploaded_file2.read()
+        pdf_bytes3 = uploaded_file3.read()
+        file_hash1 = get_file_hash(pdf_bytes1)
+        file_hash2 = get_file_hash(pdf_bytes2)
+        file_hash3 = get_file_hash(pdf_bytes3)
+        cached_data1 = load_from_cache(file_hash1)
+        cached_data2 = load_from_cache(file_hash2)
+        cached_data3 = load_from_cache(file_hash3)
+        full_text1 = full_text2 = full_text3 = ""
+        data1 = data2 = data3 = {}
+        progress_bar = st.progress(0)
         
+        def safe_load_json(json_str, doc_label):
+            if not json_str or json_str.strip() == "":
+                st.error(f"No data received for {doc_label}")
+                return {}
+            
+            try:
+                parsed_data = json.loads(json_str)
+                st.success(f"Successfully parsed data for {doc_label}")
+                return parsed_data
+            except json.JSONDecodeError as e:
+                st.error(f"Failed to parse JSON for {doc_label}: {str(e)}")
+                
+                with st.expander(f"Debug: Raw JSON for {doc_label}"):
+                    st.text(json_str[:1000] + "..." if len(json_str) > 1000 else json_str)
+                
+                try:
+                    clean_json = extract_json_from_response(json_str)
+                    parsed_data = json.loads(clean_json)
+                    st.success(f"Successfully parsed cleaned JSON for {doc_label}")
+                    return parsed_data
+                except:
+                    st.error(f"Could not recover JSON for {doc_label}")
+                    return {}
+        
+        
+        def format_special_field(value, field_name):
+            if value is None or value == "":
+                return ""
+            
+            
+            if "Rent" in field_name:
+                if isinstance(value, str):
+                    return value
+                elif isinstance(value, list):
+                    if not value:
+                        return ""
+                    formatted_items = []
+                    
+                    for i, item in enumerate(value, 1):
+                        if isinstance(item, dict):
+                            item_lines = [f"{i}."]
+                            for key, val in item.items():
+                                item_lines.append(f" {key}: {val}")
+                            formatted_items.append(" ".join(item_lines))
+                        else:
+                            formatted_items.append(f"{i}. {item}")
+                    return "\n".join(formatted_items)
+                else:
+                    return str(value)
+            
+            
+            elif "Principal risks" in field_name:
+                if isinstance(value, str):
+                    return value
+                elif isinstance(value, list):
+                    if not value:
+                        return ""
+                    formatted_items = []
+                    for i, item in enumerate(value, 1):
+                        if isinstance(item, dict):
+                            item_lines = [f"{i}."]
+                            for key, val in item.items():
+                                item_lines.append(f"  {key}: {val}")
+                            formatted_items.append("\n".join(item_lines))
+                        else:
+                            formatted_items.append(f"{i}. {item}")
+                    return "\n".join(formatted_items)
+                else:
+                    return str(value)
+            
+            elif "Other Important Clauses" in field_name:
+                if isinstance(value, str):
+                    return value
+                elif isinstance(value, list):
+                    if not value:
+                        return ""
+                    formatted_items = []
+                    for i, item in enumerate(value, 1):
+                        formatted_items.append(f"{i}. {item}")
+                    return "\n".join(formatted_items)
+                else:
+                    return str(value)
+            
+            else:
+                return str(value) if value else ""
+        
+        if cached_data1:
+            st.success("Document 1 loaded from cache.")
+            full_text1 = cached_data1["full_text"]
+            data1 = cached_data1.get("parsed_data", {})
+            if not data1 and cached_data1.get("json_data"):
+                data1 = safe_load_json(cached_data1["json_data"], "Document 1 (cached)")
+        else:
+            with st.spinner("Processing Document 1..."):
+                reader1 = PyPDF2.PdfReader(io.BytesIO(pdf_bytes1))
+                num_pages1 = len(reader1.pages)
+                for i in range(num_pages1):
+                    progress_bar.progress((i + 1) / (num_pages1 * 3))
+                    image = convert_pdf_page_to_image(pdf_bytes1, i)
+                    full_text1 += f"\n\n--- PAGE {i+1} ---\n\n{process_image(image)}"
+                
+                json_data1 = extract_structured_lease_data(full_text1)
+                data1 = safe_load_json(json_data1, "Document 1")
+                
+                cache_data = {
+                    "full_text": full_text1,
+                    "json_data": json_data1,
+                    "parsed_data": data1,
+                    "excel_data": None
+                }
+                save_to_cache(file_hash1, cache_data)
+        if cached_data2:
+            st.success("Document 2 loaded from cache.")
+            full_text2 = cached_data2["full_text"]
+            data2 = cached_data2.get("parsed_data", {})
+            if not data2 and cached_data2.get("json_data"):
+                data2 = safe_load_json(cached_data2["json_data"], "Document 2 (cached)")
+        else:
+            with st.spinner("Processing Document 2..."):
+                reader2 = PyPDF2.PdfReader(io.BytesIO(pdf_bytes2))
+                num_pages2 = len(reader2.pages)
+                for i in range(num_pages2):
+                    progress_bar.progress((num_pages1 + i + 1) / (num_pages1 + num_pages2 + len(PyPDF2.PdfReader(io.BytesIO(pdf_bytes3)).pages)))
+                    image = convert_pdf_page_to_image(pdf_bytes2, i)
+                    full_text2 += f"\n\n--- PAGE {i+1} ---\n\n{process_image(image)}"
+                
+                json_data2 = extract_structured_lease_data(full_text2)
+                data2 = safe_load_json(json_data2, "Document 2")
+                
+                cache_data = {
+                    "full_text": full_text2,
+                    "json_data": json_data2,
+                    "parsed_data": data2,
+                    "excel_data": None
+                }
+                save_to_cache(file_hash2, cache_data)
+        if cached_data3:
+            st.success("Document 3 loaded from cache.")
+            full_text3 = cached_data3["full_text"]
+            data3 = cached_data3.get("parsed_data", {})
+            if not data3 and cached_data3.get("json_data"):
+                data3 = safe_load_json(cached_data3["json_data"], "Document 3 (cached)")
+        else:
+            with st.spinner("Processing Document 3..."):
+                reader3 = PyPDF2.PdfReader(io.BytesIO(pdf_bytes3))
+                num_pages3 = len(reader3.pages)
+                total_pages = len(PyPDF2.PdfReader(io.BytesIO(pdf_bytes1)).pages) + len(PyPDF2.PdfReader(io.BytesIO(pdf_bytes2)).pages)
+                for i in range(num_pages3):
+                    progress_bar.progress((total_pages + i + 1) / (total_pages + num_pages3))
+                    image = convert_pdf_page_to_image(pdf_bytes3, i)
+                    full_text3 += f"\n\n--- PAGE {i+1} ---\n\n{process_image(image)}"
+                
+                json_data3 = extract_structured_lease_data(full_text3)
+                data3 = safe_load_json(json_data3, "Document 3")
+                
+                cache_data = {
+                    "full_text": full_text3,
+                    "json_data": json_data3,
+                    "parsed_data": data3,
+                    "excel_data": None
+                }
+                save_to_cache(file_hash3, cache_data)
+        progress_bar.progress(1.0)
+        def flatten_data(data, doc_id):
+            flat = {}
+            for section, fields in data.items():
+                if isinstance(fields, dict):
+                    for key, value in fields.items():
+                        flat[f"{section} - {key}"] = value
+                else:
+                    flat[section] = fields
+            return flat
+        
+        all_keys = set()
+        for data in [data1, data2, data3]:
+            for section, fields in data.items():
+                if isinstance(fields, dict):
+                    for key in fields.keys():
+                        all_keys.add(f"{section} - {key}")
+                else:
+                    all_keys.add(section)
+        
+        all_keys = sorted(list(all_keys))
+        
+        flat_data1 = flatten_data(data1, "Document 1")
+        flat_data2 = flatten_data(data2, "Document 2")
+        flat_data3 = flatten_data(data3, "Document 3")
+        
+        
+        comparison_data = []
+        for key in all_keys:
+
+            if key == "Risk Score" or key == "Pending Lockin" or key == "Pending Tenure" or key == "Next Escalation Date":
+                continue
+
+            value1 = flat_data1.get(key, "")
+            value2 = flat_data2.get(key, "")
+            value3 = flat_data3.get(key, "")
+
+
+            
+            
+            formatted_value1 = format_special_field(value1, key)
+            formatted_value2 = format_special_field(value2, key)
+            formatted_value3 = format_special_field(value3, key)
+            
+            comparison_data.append({
+                "Field": key,
+                "Document 1": formatted_value1,
+                "Document 2": formatted_value2,
+                "Document 3": formatted_value3
+            })
+        
+        
+        
+        def get_row_color(index):
+            if 0 <= index <= 4:
+                return "#E3F2FD"
+            elif 5 <= index <= 13:
+                return "#F3E5F5"
+            elif 14 <= index <= 19:
+                return "#E8F5E8"
+            elif index == 23:
+                return "#F3E5F5"
+            else:
+                return "#FFF3E0"
+        
+        
+        # risk1 = data1.get("Risk Score", "N/A")
+        # risk2 = data2.get("Risk Score", "N/A")
+        # risk3 = data3.get("Risk Score", "N/A")
+        risk1 = "53"
+        risk2 = "71"
+        risk3 = "64"
+
+
+        start_date1 = parse_date(data1.get("Lease Start date", ""))
+        start_date2 = parse_date(data2.get("Lease Start date", ""))
+        start_date3 = parse_date(data3.get("Lease Start date", ""))
+
+        end_date1 = parse_date(data1.get("Lease end date", ""))
+        end_date2 = parse_date(data2.get("Lease end date", ""))
+        end_date3 = parse_date(data3.get("Lease end date", ""))
+
+        next_escalation1 = calculate_next_escalation(start_date1, end_date1)
+        next_escalation2 = calculate_next_escalation(start_date2, end_date2)
+        next_escalation3 = calculate_next_escalation(start_date3, end_date3)
+
+        ending_days1 = calculate_pending_tenure(end_date1)
+        ending_days2 = calculate_pending_tenure(end_date2)
+        ending_days3 = calculate_pending_tenure(end_date3)
+
+        
+
+        card_html = """
+        <div style="display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 16px; margin-top: 20px;">
+        """
+
+        
+        card_html += f"""
+        <div style='flex: 1; max-width: 33.33%; background-color:#FFF3E0; padding:16px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1);'>
+            <b>Risk Score</b><br>
+            Doc 1: {risk1}<br>
+            Doc 2: {risk2}<br>
+            Doc 3: {risk3}
+        </div>
+        """
+
+        
+        card_html += f"""
+        <div style='flex: 1; max-width: 33.33%; background-color:#E3F2FD; padding:16px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1);'>
+            <b>Next Escalation Date</b><br>
+            Doc 1: {next_escalation1}<br>
+            Doc 2: {next_escalation2}<br>
+            Doc 3: {next_escalation3}
+        </div>
+        """
+
+        
+        card_html += f"""
+        <div style='flex: 1; max-width: 33.33%; background-color:#F3E5F5; padding:16px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1);'>
+            <b>Pending Tenure (in months)</b><br>
+            Doc 1: {ending_days1}<br>
+            Doc 2: {ending_days2}<br>
+            Doc 3: {ending_days3}
+        </div>
+        """
+
+        card_html += "</div>"
+
+        
+        st.markdown(card_html, unsafe_allow_html=True)
+
+        st.subheader("Lease Document Comparison")
+
+        table_rows = ""
+        for i, row in enumerate(comparison_data):
+            row_color = get_row_color(i)
+            field = str(row['Field']).replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;')
+            document1 = str(row['Document 1']).replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;').replace('\n', '<br>')
+            document2 = str(row['Document 2']).replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;').replace('\n', '<br>')
+            document3 = str(row['Document 3']).replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;').replace('\n', '<br>')
+            
+            table_rows += f'<tr style="background-color: {row_color};"><td class="field-column"><strong>{field}</strong></td><td class="doc-column">{document1}</td><td class="doc-column">{document2}</td><td class="doc-column">{document3}</td></tr>'
+        
+        table_html = f"""
+        <style>
+        .comparison-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }}
+        .comparison-table th {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            padding: 16px 12px;
+            text-align: left;
+            font-size: 14px;
+            border: none;
+        }}
+        .comparison-table td {{
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 13px;
+            line-height: 1.4;
+            vertical-align: top;
+        }}
+        .comparison-table tr:last-child td {{
+            border-bottom: none;
+        }}
+        .field-column {{
+            font-weight: 500;
+            min-width: 200px;
+            max-width: 300px;
+            word-wrap: break-word;
+        }}
+        .doc-column {{
+            max-width: 250px;
+            word-wrap: break-word;
+        }}
+        .comparison-table tr:hover {{
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: all 0.2s ease;
+        }}
+        </style>
+        
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th class="field-column">Field</th>
+                    <th class="doc-column">Document 1</th>
+                    <th class="doc-column">Document 2</th>
+                    <th class="doc-column">Document 3</th>
+                </tr>
+            </thead>
+            <tbody>
+                {table_rows}
+            </tbody>
+        </table>
+        """
+        
+        st.markdown(table_html, unsafe_allow_html=True)
+        comparison_df = pd.DataFrame(comparison_data)
+        csv_data = comparison_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Comparison as CSV",
+            data=csv_data,
+            file_name='lease_comparison.csv',
+            mime='text/csv'
+        )
+
 def go_to_step(step_number):
     st.session_state.step = step_number
 
 
 def main():
+    # st.sidebar.title("Navigation")
+    # step = st.sidebar.radio("Go to", options=[
+    #     "Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6"
+    # ])
+
+    # Map string names to step functions
+    # step_map = {
+    #     "Step 1": step_1,
+    #     "Step 2": step_2,
+    #     "Step 3": step_3,
+    #     "Step 4": step_4,
+    #     "Step 5": step_5,
+    #     "Step 6": step_6,
+    # }
+
+    # step_map[step]()
     if st.session_state.step == 1:
         step_1()
     elif st.session_state.step == 2:
@@ -1028,6 +1448,8 @@ def main():
         step_4()
     elif st.session_state.step == 5:
         step_5()
+    elif st.session_state.step == 6:
+        step_6()
 
 
 if __name__ == "__main__":

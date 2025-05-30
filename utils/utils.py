@@ -10,6 +10,9 @@ import google.generativeai as genai
 import json
 import pandas as pd
 import hashlib
+import re
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 
 CACHE_DIR = "pdf_cache"
@@ -200,7 +203,132 @@ def extract_structured_data(full_text):
         return response.choices[0].message.content
     except Exception as e:
         return ""
+    
+def extract_structured_lease_data(full_text):
+    prompt = f"""
+            You are an expert in legal document extraction. Analyze the following lease document text and extract the following sections ONLY if the information is explicitly mentioned in the document. If any information is missing or not clearly stated, leave that field empty. Format the result as a structured JSON.
 
+            \"\"\"{full_text}\"\"\"
+
+            Extract and organize the data into:
+
+            Return ONLY valid JSON with keys matching the field names above. Do not include any markdown formatting or explanatory text.
+
+            JSON Structure:
+            {{
+                "Agreement Date": "",
+                "Lease registered or notarized": "",
+                "Lease Start date": "",
+                "Lease end date": "",
+                "Lessor Name": "",
+                "Lessor Address": "",
+                "Lessor GST": "",
+                "Lessor Aadhar Number": "",
+                "Lessor PAN": "",
+                "Lessor Legal Entity Type": "",
+                "Lessee Name": "",
+                "Lessee Address": "",
+                "Lessee GST": "",
+                "Lessee Aadhar Number": "",
+                "Lessee PAN": "",
+                "Lessee Legal Entity Type": "",
+                "Unit no": "",
+                "Address": "",
+                "Rent": [],
+                "Area(sq ft)":"",
+                "Lock In": "",
+                "Escalation": "",
+                "Additonal Cost": "",
+                "Maintenance": "",
+                "Property Tax": "",
+                "Security Deposit": "",
+                "Other Important Clauses": ["",""],
+                "Principal risks" : ["",""],
+                "Next Escalation Date":"",
+                "Risk Score": "",
+                "Pending Tenure": "",
+                "Pending Lockin":""
+            }}
+
+            For Rent, make it as a list of objects with timeline and rent value of each year.
+            
+            Other Important Clauses should include the following parts(dont give point numbers give full text as an array of strings):
+            1. Where lessor needs to pay an early amount of certain period of time.
+            2. Anything related to tax/tax deduction/TDS.
+            3. Maintenance and stuff related payment.
+            4. Anything related to breaching of the clauses.
+            5. Anything related to payments.
+            6. Scope of Work(full table).
+            7. Safeguarding Clauses.
+            8. Parking related Clauses.
+
+            For Principal Risks: Assume you are an analyst looking to discount the rentals and give a loan to the owner of this property please identify the top 5 legal and technical risks from lenders perspective.
+
+            Next Escalation Date: You need to calculate based on the available data. Leave empty if not available
+
+            Pending Tenure: You need to calculate based on today's date and tenure end date in months just numerical value.
+
+            Risk Score: Compute the Risk Score (on a scale of 0-100) for a lease under the Rental-Discount Loan framework. The score is based on weighted sub-factors across 5 categories. Each sub-factor is rated from 1 (very low risk) to 5 (high risk). Below are the inputs:
+
+            1. Tenant Quality (20%)
+            External credit rating (15%): [Enter rating 1-5]
+            Parent/cross-default support (5%): [Enter rating 1-5]
+            2. Key Legal Risks in the Lease (25%)
+            Early-termination / break rights (10%): [Enter rating 1-5]
+            Sub-lease / assignment rights (5%): [Enter rating 1-5]
+            Rent-abatement & force-majeure clauses (5%): [Enter rating 1-5]
+            Registration / stamping validity (5%): [Enter rating 1-5]
+            3. Financial / Structural Ratios (20%)
+            DSCR on stressed rent (10%): [Enter rating 1-5]
+            Residual lease term ÷ proposed loan tenor (5%): [Enter rating 1-5]
+            LTV on discounted rent value (5%): [Enter rating 1-5]
+            4. Building Quality & Approvals (20%)
+            Occupancy Certificate, fire NOC (7%): [Enter rating 1-5]
+            Structural age & stability (7%): [Enter rating 1-5]
+            Clear title & zoning compliance (6%): [Enter rating 1-5]
+            5. Other Financial / Compliance Risks (15%)
+            Property-tax & GST arrears (5%): [Enter rating 1-5]
+            Insurance adequacy & lender endorsement (5%): [Enter rating 1-5]
+            Regulatory / ESG compliance burden (5%): [Enter rating 1-5]
+            Once all the sub-factor ratings are provided, compute the category score as the weighted average of its sub-factors, then compute the overall weighted rating (S), and finally convert it to a Risk Score (R) using:
+
+            S = Σ (Category Weight x Category Rating)
+            R = ((S - 1) / 4) x 100
+            Return the final Risk Score out of 100.
+            """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=4096
+        )
+        raw_response = response.choices[0].message.content
+        
+        clean_json = extract_json_from_response(raw_response)
+        
+        return clean_json
+    except Exception as e:
+        print(f"Error in extract_structured_lease_data: {e}")
+        return ""
+
+def extract_json_from_response(response_content):
+    json_match = re.search(r'```json\s*(.*?)\s*```', response_content, re.DOTALL)
+    if json_match:
+        return json_match.group(1).strip()
+    
+    json_match = re.search(r'```\s*(.*?)\s*```', response_content, re.DOTALL)
+    if json_match:
+        return json_match.group(1).strip()
+    
+    json_match = re.search(r'(\{.*\})', response_content, re.DOTALL)
+    if json_match:
+        return json_match.group(1).strip()
+    
+    return response_content.strip()
 
     
 def extract_structured_summary_report(full_text):
@@ -368,3 +496,61 @@ def clean_dataframe(df):
             df[col] = df[col].fillna("")
 
     return df
+
+
+
+def parse_date(date_str):
+    if not date_str or not isinstance(date_str, str):
+        return None
+    
+    # Remove ordinal suffixes: 1st, 2nd, 3rd, 4th, etc.
+    date_str_clean = re.sub(r'(\d{1,2})(st|nd|rd|th)', r'\1', date_str.strip())
+
+    # List of date formats to try
+    formats = [
+        "%d-%m-%Y",     # 01-12-2023
+        "%m/%d/%Y",     # 07/01/2025 (assuming mm/dd/yyyy)
+        "%d %B %Y",     # 16 September 2024
+        "%d %b %Y",     # 16 Sep 2024 (in case abbreviated month)
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str_clean, fmt)
+        except ValueError:
+            continue
+    return None
+
+def calculate_next_escalation(lease_start, lease_end):
+    today = datetime.today()
+
+    # Ensure both dates are parsed properly
+    if not isinstance(lease_start, datetime) or not isinstance(lease_end, datetime):
+        return "N/A"
+    
+    if today > lease_end:
+        return "N/A"  # Lease expired
+
+    # Start from lease_start + 12 months
+    next_escalation = lease_start + relativedelta(months=+12)
+
+    # Increment until next escalation is after today and within lease period
+    while next_escalation <= today and next_escalation <= lease_end:
+        next_escalation += relativedelta(months=+12)
+
+    if next_escalation > lease_end:
+        return "N/A"
+
+    return next_escalation.strftime("%d %B %Y")
+
+
+    return next_escalation.strftime("%d %B %Y")
+
+def calculate_pending_tenure(lease_end):
+    today = datetime.today()
+    if lease_end is None or today > lease_end:
+        return 0
+    
+    delta = relativedelta(lease_end, today)
+    total_months = delta.years * 12 + delta.months
+    return total_months
