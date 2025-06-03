@@ -136,55 +136,53 @@ def extract_structured_data(full_text):
         
         {full_text}
         
-        Extract and organize the data into two parts:
         
-        PART 1: Extract this table data with these columns aligned by row:
-        - Sr. No.
-        - Tranche Amount (Rs Cr)
-        - Cumulative Disbursement (Rs Cr)
-        - Construction % (Europa, Mynsa & Capella)
-        - Incremental Collection/Promoters' Contribution (Rs Cr)
+        Extract the full disbursement table data with the columns aligned by row:
+        Along with each row associate these following details for each Tranche.
+
+        - Conditions Precedent for Tranche 1: These are the "Pre-Disbursement" conditions and exclusive conditions which needs to be fulfilled before Tranche 1.
+        - Conditions Precedent for other Tranche's: These are the conditions that needs to be fulfilled before the respective Tranche disbursement except the first tranche.
+        - Conditions Subsequent with Frequency: These are the "Conditions to be satisfied within 30 days from first disbursement".
         
-        PART 2: Extract these as separate bullet point lists that apply to all rows:
-        - Pre-Disbursement Conditions: These are the "Pre-Disbursement" conditions for first loan
-        - Conditions Precedent: These are the "Takeover Conditions(pre-disbursement and disbursement separetely)" for all other loan except first loan.
-        - Conditions Subsequent with Frequency: These are the "Covenants" with both the Covenant and Timeline from the table. Fetch it as "Covenant" : "Timeline".
-        
-        Return as valid JSON in this exact format:
         {{
         "table_data": [
             {{
             "Sr. No.": 1,
-            "Tranche Amount (Rs Cr)": 12.00,
-            "Cumulative Disbursement (Rs Cr)": 12.00,
-            "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed"": "",
-            "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": ""
+            .
+            .
+            .
+            "conditions_precedent": [
+                    "Condition 1",
+                    "Condition 2",
+                    // more conditions...
+                ],
+            "conditions_subsequent": [
+                    "Condition 1,
+                    "Condition 2",
+                    // more covenants...
+                ]
+            
             }},
             {{
             "Sr. No.": 2,
-            "Tranche Amount (Rs Cr)": 5.00,
-            "Cumulative Disbursement (Rs Cr)": 17.00,
-            "Construction % (Europa, Mynsa & Capella) 3 New Towers Proposed": "10.00%",
-            "Incremental Collection/Promoters' Contribution Overall Project (Rs Cr)": 5.00
-            }},
-            // more rows...
-        ],
-        "pre_disbursement_conditions": [
-            "Condition 1",
-            "Condition 2",
-            // more conditions...
-        ],
-
-        "conditions_precedent": [
-            "Condition 1",
-            "Condition 2",
-            // more conditions...
-        ],
-        "conditions_subsequent": [
-            "Covenant 1 - Timeline: Within X days...",
-            "Covenant 2 - Timeline: Quarterly...",
-            // more covenants...
+            .
+            .
+            .
+            .
+            "conditions_precedent": [
+                    "Condition 1",
+                    "Condition 2",
+                    // more conditions...
+                ],
+            "conditions_subsequent": [
+                    "Condition 1,
+                    "Condition 2",
+                    // more covenants...
+                ]
+            }}
         ]
+
+        
         }}
         
         No explanations, no markdown formatting, just the JSON object.
@@ -503,15 +501,15 @@ def parse_date(date_str):
     if not date_str or not isinstance(date_str, str):
         return None
     
-    # Remove ordinal suffixes: 1st, 2nd, 3rd, 4th, etc.
+    
     date_str_clean = re.sub(r'(\d{1,2})(st|nd|rd|th)', r'\1', date_str.strip())
 
-    # List of date formats to try
+    
     formats = [
-        "%d-%m-%Y",     # 01-12-2023
-        "%m/%d/%Y",     # 07/01/2025 (assuming mm/dd/yyyy)
-        "%d %B %Y",     # 16 September 2024
-        "%d %b %Y",     # 16 Sep 2024 (in case abbreviated month)
+        "%d-%m-%Y",
+        "%m/%d/%Y",
+        "%d %B %Y",
+        "%d %b %Y",
     ]
     
     for fmt in formats:
@@ -524,25 +522,21 @@ def parse_date(date_str):
 def calculate_next_escalation(lease_start, lease_end):
     today = datetime.today()
 
-    # Ensure both dates are parsed properly
     if not isinstance(lease_start, datetime) or not isinstance(lease_end, datetime):
         return "N/A"
     
     if today > lease_end:
-        return "N/A"  # Lease expired
+        return "N/A"
 
-    # Start from lease_start + 12 months
+    
     next_escalation = lease_start + relativedelta(months=+12)
 
-    # Increment until next escalation is after today and within lease period
+    
     while next_escalation <= today and next_escalation <= lease_end:
         next_escalation += relativedelta(months=+12)
 
     if next_escalation > lease_end:
         return "N/A"
-
-    return next_escalation.strftime("%d %B %Y")
-
 
     return next_escalation.strftime("%d %B %Y")
 

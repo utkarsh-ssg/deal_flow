@@ -106,15 +106,11 @@ def step_1():
                     st.session_state["excel_data"] = excel_data
                     st.session_state.step_1_data = data
 
-                    with open("output.txt", "w", encoding='utf-8') as file:
-                        file.write(full_text)
-
                 except Exception as e:
                     st.error(f"Error processing data: {str(e)}")
                     st.text(json_data)
                     return
 
-        
         if "excel_data" in st.session_state:
             st.success("PDF processed successfully!")
             st.download_button(
@@ -126,62 +122,45 @@ def step_1():
 
             st.subheader("Preview of extracted data:")
             data = st.session_state["parsed_data"]
+            print("data",data)
 
             if "table_data" in data:
                 st.subheader("Sanction Letter Data:")
                 table_df = pd.DataFrame(data["table_data"])
 
                 
-                styled_table_html = table_df.to_html(classes='custom-table', index=False)
-
-                st.markdown("""
-                    <style>
-                    .custom-table {
-                        border-collapse: collapse;
-                        width: 100%;
-                        font-family: Arial, sans-serif;
-                    }
-                    .custom-table th, .custom-table td {
-                        border: 1px solid #ddd;
-                        padding: 8px;
-                        text-align: left;
-                        color: black;
-                    }
-                    .custom-table th {
-                        background-color: #E0E0E0;
-                        font-weight: bold;
-                    }
-                    .custom-table tr:nth-child(even) {
-                        background-color: #F5F5F5;
-                    }
-                    .custom-table tr:hover {
-                        background-color: #D3E3FC;
-                    }
-                    </style>
-                """, unsafe_allow_html=True)
-
-                st.markdown(styled_table_html, unsafe_allow_html=True)
+                excluded_cols = {"pre_disbursement_conditions", "conditions_precedent", "conditions_subsequent"}
+                display_df = table_df.drop(columns=[col for col in table_df.columns if col in excluded_cols], errors='ignore')
+                st.dataframe(display_df)
 
                 
-                milestone_options = table_df.iloc[:, 0].tolist()
-                st.write("Select a Milestone to view related conditions:")
-                selected_milestone = st.selectbox("", [""] + milestone_options)
+                milestone_options = []
+                for i, row in enumerate(data.get("table_data", [])):
+                    tranche_label = row.get("Tranche", f"Tranche {i+1}")
+                    milestone_options.append(tranche_label)
 
-                if selected_milestone:
-                    if selected_milestone == milestone_options[0]:
-                        if "pre_disbursement_conditions" in data:
-                            st.subheader("Pre-Disbursement Conditions:")
-                            for i, item in enumerate(data["pre_disbursement_conditions"]):
-                                st.write(f"{i+1}. {item}")
-                    else:
-                        if "conditions_precedent" in data:
-                            st.subheader("Conditions Precedent:")
-                            for i, item in enumerate(data["conditions_precedent"]):
-                                st.write(f"{i+1}. {item}")
-                        if "conditions_subsequent" in data:
-                            st.subheader("Conditions Subsequent:")
-                            for i, item in enumerate(data["conditions_subsequent"]):
-                                st.write(f"{i+1}. {item}")
+                
+                selected_option = st.selectbox("Select Tranche to View Conditions", ["Select a tranche"] + milestone_options)
+
+                
+                if selected_option != "Select a tranche":
+                    tranche_index = milestone_options.index(selected_option)
+                    selected_tranche = data["table_data"][tranche_index]
+
+                    if "pre_disbursement_conditions" in selected_tranche:
+                        st.subheader("Pre-Disbursement Conditions:")
+                        for i, item in enumerate(selected_tranche["pre_disbursement_conditions"]):
+                            st.write(f"{i+1}. {item}")
+
+                    if "conditions_precedent" in selected_tranche:
+                        st.subheader("Conditions Precedent:")
+                        for i, item in enumerate(selected_tranche["conditions_precedent"]):
+                            st.write(f"{i+1}. {item}")
+
+                    if "conditions_subsequent" in selected_tranche:
+                        st.subheader("Conditions Subsequent:")
+                        for i, item in enumerate(selected_tranche["conditions_subsequent"]):
+                            st.write(f"{i+1}. {item}")
 
             st.button("Next", on_click=go_to_step, args=(2,))
 
@@ -563,7 +542,7 @@ def step_4():
     AUTH_TOKEN = "API://QFEreQJLUvIWHKSLliicNPOC/MYh9B7dCo95Chz2rT2Sgf9ihi53EpD8LigFS/tw"
 
     uploaded_file = st.file_uploader("Upload bank statement", type="pdf")
-
+    creditTransactionAmount = 0
     if uploaded_file is not None:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             tmp_file.write(uploaded_file.read())
@@ -598,6 +577,7 @@ def step_4():
         }
 
         upload_response = requests.post(UPLOAD_URL, files=files, headers=headers)
+
 
         if upload_response.status_code == 200:
             st.success("File uploaded successfully!")
@@ -658,9 +638,13 @@ def step_4():
                             
                             cards = []
                             analysis_data = result['data'][0]['analysisData']
+                            c = 0
                             for item in analysis_data:
                                 month = item.get("month", "")
                                 credit_amount = item.get("creditTransactionsAmount", 0.0)
+
+                                if c == 0:
+                                    creditTransactionAmount = credit_amount
                                 credit_count = item.get("noOfCreditTransactions", 0)
                                 debit_amount = item.get("debitTransactionsAmount", 0)
                                 debit_count = item.get("noOfDebitTransactions", 0)
@@ -742,8 +726,7 @@ def step_4():
                     </style>
                 """, unsafe_allow_html=True)
 
-                render_styled_table(data["df2"], f"{sheet} - COP-MOF Current")
-
+                
                 df1 = data['df1']
                 df2 = data['df2']
                 bank_funds = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
@@ -757,8 +740,28 @@ def step_4():
                 bank_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
                 total_a_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
                 total_a_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
-
                 
+                
+
+                if uploaded_file and cust_adv_2.size > 0:
+                    cust_adv_incurred = float(cust_adv_2[0])
+                    creditTransactionAmount = creditTransactionAmount/100000000
+                    if creditTransactionAmount < cust_adv_incurred:
+                        st.markdown(f"""
+                        <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
+                            <b>Red Flag:</b><br>
+                            Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) is less than Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
+                            <b>Green Flag:</b><br>
+                            Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) covers Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                render_styled_table(data["df2"], f"COP-MOF Current")
 
                 card_html = """
                 <style>
