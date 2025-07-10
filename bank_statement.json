@@ -1,0 +1,1354 @@
+{
+    "docId": "DOC00409179",
+    "status": "Processed",
+    "message": null,
+    "periodStart": null,
+    "periodEnd": null,
+    "documents": null,
+    "data": [
+        {
+            "bankName": "ICICI",
+            "bankFullName": "ICICI Bank Ltd",
+            "accountNumber": "003805016072",
+            "accountName": "BDSPL RERA DESIGNATED SEPERATE BANK A/C FOR GOLDEN VISTA",
+            "ifscCode": "ICIC0001200",
+            "branchName": null,
+            "accountType": "Current Account",
+            "accountOpeningDate": null,
+            "productType": null,
+            "periodStart": "01/01/2025",
+            "periodEnd": "19/02/2025",
+            "address": "SONA MOHAR,OFF NEHRU ROAD,SANTACRUZ EAST,MUMBAI,400055,MAHARASHTRA, INDIA",
+            "email": null,
+            "mobileNumber": null,
+            "panNumber": null,
+            "monthsEvaluated": 2,
+            "documentType": "Statement",
+            "lastCustomerTransactionDate": "18/02/2025",
+            "missingMonths": null,
+            "score": 0.0,
+            "scoreData": null,
+            "camAnalysisData": {
+                "odCcLimit": 0.0,
+                "inwardReturnCount": 0,
+                "outwardReturnCount": 0,
+                "inwardReturnAmount": 0.0,
+                "outwardReturnAmount": 0.0,
+                "totalNetCredits": 6242278.0,
+                "averageBalance": 2347055.5,
+                "customAverageBalance": 2608835.6,
+                "customAverageBalanceLastThreeMonth": 2608835.6,
+                "averageBalanceLastThreeMonth": 2347055.5,
+                "averageBalanceLastSixMonth": 2347055.5,
+                "averageBalanceLastTwelveMonth": 2347055.5,
+                "averageReceiptLastSixMonth": 6242278.0,
+                "averageReceiptLastTwelveMonth": 6242278.0,
+                "salaryCreditCountLastThreeMonth": 0,
+                "salaryCreditCountLastSixMonth": 0,
+                "minBalanceLastThreeMonth": 0.0,
+                "minBalanceLastSixMonth": 0.0,
+                "minBalanceChargeCountLastSixMonth": 0,
+                "camAnalysisMonthly": [
+                    {
+                        "month": "Feb-2025",
+                        "noOfCredit": 8,
+                        "grossCreditAmount": 8826664.0,
+                        "noOfNetCredit": 4,
+                        "netCreditAmount": 6242278.0,
+                        "internalCredits": 0.0,
+                        "noOfDebit": 5,
+                        "grossDebitAmount": 4194764.0,
+                        "noOfNetDebit": 1,
+                        "netDebitAmount": 1610378.0,
+                        "internalDebit": 0.0,
+                        "noOfInwardReturn": 0,
+                        "inwardReturn": 0.0,
+                        "noOfOutwardReturn": 0,
+                        "outwardReturn": 0.0,
+                        "loanDisbursal": 0.0,
+                        "customDayBalances": {
+                            "5": 700000.0,
+                            "10": 1610378.0,
+                            "15": 1470000.0,
+                            "20": 4631900.0,
+                            "25": 4631900.0
+                        },
+                        "maxContinuousOverdrawings": 0,
+                        "monthlyAvgInclOdCcLimit": 0.0,
+                        "instancesOfOverdrawings": 0,
+                        "maxOverdrawnAmount": 0.0,
+                        "maxInterestServicingDays": 0,
+                        "overallAveragePositiveNegativeEODBalance": 2347055.5,
+                        "averageUtilisedNegativeEODBalance": 0.0,
+                        "averageUnutilisedCustomDayBalances": 0.0,
+                        "averageUtilisedCustomDayBalances": 2608835.6,
+                        "minBalance": 0.0,
+                        "maxBalance": 0.0
+                    },
+                    {
+                        "month": "Grand Total",
+                        "noOfCredit": 8,
+                        "grossCreditAmount": 8826664.0,
+                        "noOfNetCredit": 4,
+                        "netCreditAmount": 6242278.0,
+                        "internalCredits": 0.0,
+                        "noOfDebit": 5,
+                        "grossDebitAmount": 4194764.0,
+                        "noOfNetDebit": 1,
+                        "netDebitAmount": 1610378.0,
+                        "internalDebit": 0.0,
+                        "noOfInwardReturn": 0,
+                        "inwardReturn": 0.0,
+                        "noOfOutwardReturn": 0,
+                        "outwardReturn": 0.0,
+                        "loanDisbursal": 0.0,
+                        "customDayBalances": {},
+                        "maxContinuousOverdrawings": 0,
+                        "monthlyAvgInclOdCcLimit": 0.0,
+                        "instancesOfOverdrawings": 0,
+                        "maxOverdrawnAmount": 0.0,
+                        "maxInterestServicingDays": 0,
+                        "overallAveragePositiveNegativeEODBalance": 2347055.5,
+                        "averageUtilisedNegativeEODBalance": 0.0,
+                        "averageUnutilisedCustomDayBalances": 0.0,
+                        "averageUtilisedCustomDayBalances": 0.0,
+                        "minBalance": 0.0,
+                        "maxBalance": 0.0
+                    }
+                ]
+            },
+            "analysisData": [
+                {
+                    "month": "Feb-2025",
+                    "noOfCreditTransactions": 8,
+                    "creditTransactionsAmount": 8826664.0,
+                    "noOfDebitTransactions": 5,
+                    "debitTransactionsAmount": 4194764.0,
+                    "noOfNetCreditTransactions": 4,
+                    "netCreditTransactionsAmount": 6242278.0,
+                    "noOfNetDebitTransactions": 1,
+                    "netDebitTransactionsAmount": 1610378.0,
+                    "noOfCashWithdrawals": 0,
+                    "cashWithdrawalsAmount": 0.0,
+                    "noOfATMWithdrawals": 0,
+                    "atmWithdrawalsAmount": 0.0,
+                    "noOfCashDeposits": 0,
+                    "cashDepositsAmount": 0.0,
+                    "noOfChequeBounceInward": 0,
+                    "chequeBounceInwardAmount": 0.0,
+                    "noOfChequeBounceOutward": 0,
+                    "chequeBounceOutwardAmount": 0.0,
+                    "noOfTechnicalChequeBounce": 0,
+                    "technicalChequeBounceAmount": 0.0,
+                    "noOfNonTechnicalChequeBounce": 0,
+                    "nonTechnicalChequeBounceAmount": 0.0,
+                    "noOfPaymentBounceInward": 0,
+                    "paymentBounceInwardAmount": 0.0,
+                    "noOfPaymentBounceOutward": 0,
+                    "paymentBounceOutwardAmount": 0.0,
+                    "noOfChequeDeposits": 0,
+                    "chequeDepositsAmount": 0.0,
+                    "noOfChequeIssued": 0,
+                    "chequeIssuedAmount": 0.0,
+                    "noOfEMI": 0,
+                    "totalEMIAmount": 0.0,
+                    "noOfEMIBounce": 0,
+                    "totalEMIBounceAmount": 0.0,
+                    "noOfLoanDisbursal": 0,
+                    "loanDisbursalAmount": 0.0,
+                    "salaryAmount": 0.0,
+                    "otherIncomeAmount": 0.0,
+                    "noOfMinimumBalanceCharges": 0,
+                    "noOfDDIssue": 0,
+                    "totalDDIssue": 0.0,
+                    "noOfDDCancel": 0,
+                    "totalDDCancel": 0.0,
+                    "noOfCreditInternalTransfer": 0,
+                    "totalCreditInternalTransfer": 0.0,
+                    "noOfDebitInternalTransfer": 0,
+                    "totalDebitInternalTransfer": 0.0,
+                    "noOfEcsNachTransactions": 0,
+                    "totalEcsNachAmount": 0.0,
+                    "noOfHolidayTransactions": 0,
+                    "totalHolidayAmount": 0.0,
+                    "minimumEODBalance": 0.0,
+                    "maximumEODBalance": 4631900.0,
+                    "averageEODBalance": 2347055.5,
+                    "noOfPenalCharges": 0,
+                    "totalPenalChargesAmount": 0.0,
+                    "noOfBankCharges": 0,
+                    "totalBankChargesAmount": 0.0,
+                    "cashDepositPercentage": 0.0,
+                    "noOfInterestReceived": 0,
+                    "totalInterestReceived": 0.0,
+                    "noOfInterestPaid": 0,
+                    "totalInterestPaid": 0.0,
+                    "noOfReversal": 4,
+                    "totalReversalAmount": 2584386.0,
+                    "noOfChequeReturnCharges": 0,
+                    "totalChequeReturnCharges": 0.0,
+                    "noOfInwardChequeReturnCharges": 0,
+                    "totalInwardChequeReturnCharges": 0.0,
+                    "noOfOutwardChequeReturnCharges": 0,
+                    "totalOutwardChequeReturnCharges": 0.0,
+                    "noOfPaymentBounceCharges": 0,
+                    "totalPaymentBounceCharges": 0.0,
+                    "noOfCashDep9To10L": 0,
+                    "noOfCashDep40To50K": 0,
+                    "noOfAtmWdlAbove2K": 0,
+                    "minimumBalance": 0.0,
+                    "maximumBalance": 4631900.0,
+                    "medianBalance": 1610378.0,
+                    "noOfExpenseTransactions": 0,
+                    "totalExpenseAmount": 0.0,
+                    "averageExpense": 0.0,
+                    "noOfInwardUPICount": 0,
+                    "totalInwardUPIAmount": 0.0,
+                    "noOfOutwardUPICount": 0,
+                    "totalOutwardUPIAmount": 0.0,
+                    "noOfCardSettlement": 0,
+                    "totalCardSettlement": 0.0,
+                    "noOfInvestment": 0,
+                    "totalInvestmentAmount": 0.0,
+                    "noOfInvestmentIncome": 0,
+                    "totalInvestmentIncome": 0.0,
+                    "noOfUPISettlement": 0,
+                    "totalUPISettlementAmount": 0.0,
+                    "noOfUniqueDaysUPISettlement": 0,
+                    "totalObligationAmount": 0.0,
+                    "noOfSystemInitiatedTransaction": 0,
+                    "systemInitiatedTransactionAmount": 0.0,
+                    "noOfCustomerInitiatedTransaction": 1,
+                    "noOfNegativeEODBalance": 0,
+                    "noOfNEFTCredit": 0,
+                    "totalNEFTCreditAmount": 0.0,
+                    "noOfNEFTDebit": 0,
+                    "totalNEFTDebitAmount": 0.0,
+                    "noOfRTGSCredit": 0,
+                    "totalRTGSCreditAmount": 0.0,
+                    "noOfRTGSDebit": 0,
+                    "totalRTGSDebitAmount": 0.0,
+                    "noOfIMPSCredit": 0,
+                    "totalIMPSCreditAmount": 0.0,
+                    "noOfIMPSDebit": 0,
+                    "totalIMPSDebitAmount": 0.0,
+                    "noOfEMIBounceCharges": 0
+                },
+                {
+                    "month": "Grand Total",
+                    "noOfCreditTransactions": 8,
+                    "creditTransactionsAmount": 8826664.0,
+                    "noOfDebitTransactions": 5,
+                    "debitTransactionsAmount": 4194764.0,
+                    "noOfNetCreditTransactions": 4,
+                    "netCreditTransactionsAmount": 6242278.0,
+                    "noOfNetDebitTransactions": 1,
+                    "netDebitTransactionsAmount": 1610378.0,
+                    "noOfCashWithdrawals": 0,
+                    "cashWithdrawalsAmount": 0.0,
+                    "noOfATMWithdrawals": 0,
+                    "atmWithdrawalsAmount": 0.0,
+                    "noOfCashDeposits": 0,
+                    "cashDepositsAmount": 0.0,
+                    "noOfChequeBounceInward": 0,
+                    "chequeBounceInwardAmount": 0.0,
+                    "noOfChequeBounceOutward": 0,
+                    "chequeBounceOutwardAmount": 0.0,
+                    "noOfTechnicalChequeBounce": 0,
+                    "technicalChequeBounceAmount": 0.0,
+                    "noOfNonTechnicalChequeBounce": 0,
+                    "nonTechnicalChequeBounceAmount": 0.0,
+                    "noOfPaymentBounceInward": 0,
+                    "paymentBounceInwardAmount": 0.0,
+                    "noOfPaymentBounceOutward": 0,
+                    "paymentBounceOutwardAmount": 0.0,
+                    "noOfChequeDeposits": 0,
+                    "chequeDepositsAmount": 0.0,
+                    "noOfChequeIssued": 0,
+                    "chequeIssuedAmount": 0.0,
+                    "noOfEMI": 0,
+                    "totalEMIAmount": 0.0,
+                    "noOfEMIBounce": 0,
+                    "totalEMIBounceAmount": 0.0,
+                    "noOfLoanDisbursal": 0,
+                    "loanDisbursalAmount": 0.0,
+                    "salaryAmount": 0.0,
+                    "otherIncomeAmount": 0.0,
+                    "noOfMinimumBalanceCharges": 0,
+                    "noOfDDIssue": 0,
+                    "totalDDIssue": 0.0,
+                    "noOfDDCancel": 0,
+                    "totalDDCancel": 0.0,
+                    "noOfCreditInternalTransfer": 0,
+                    "totalCreditInternalTransfer": 0.0,
+                    "noOfDebitInternalTransfer": 0,
+                    "totalDebitInternalTransfer": 0.0,
+                    "noOfEcsNachTransactions": 0,
+                    "totalEcsNachAmount": 0.0,
+                    "noOfHolidayTransactions": 0,
+                    "totalHolidayAmount": 0.0,
+                    "minimumEODBalance": 0.0,
+                    "maximumEODBalance": 4631900.0,
+                    "averageEODBalance": 2347055.5,
+                    "noOfPenalCharges": 0,
+                    "totalPenalChargesAmount": 0.0,
+                    "noOfBankCharges": 0,
+                    "totalBankChargesAmount": 0.0,
+                    "cashDepositPercentage": 0.0,
+                    "noOfInterestReceived": 0,
+                    "totalInterestReceived": 0.0,
+                    "noOfInterestPaid": 0,
+                    "totalInterestPaid": 0.0,
+                    "noOfReversal": 4,
+                    "totalReversalAmount": 2584386.0,
+                    "noOfChequeReturnCharges": 0,
+                    "totalChequeReturnCharges": 0.0,
+                    "noOfInwardChequeReturnCharges": 0,
+                    "totalInwardChequeReturnCharges": 0.0,
+                    "noOfOutwardChequeReturnCharges": 0,
+                    "totalOutwardChequeReturnCharges": 0.0,
+                    "noOfPaymentBounceCharges": 0,
+                    "totalPaymentBounceCharges": 0.0,
+                    "noOfCashDep9To10L": 0,
+                    "noOfCashDep40To50K": 0,
+                    "noOfAtmWdlAbove2K": 0,
+                    "minimumBalance": 0.0,
+                    "maximumBalance": 4631900.0,
+                    "medianBalance": 1610378.0,
+                    "noOfExpenseTransactions": 0,
+                    "totalExpenseAmount": 0.0,
+                    "averageExpense": 0.0,
+                    "noOfInwardUPICount": 0,
+                    "totalInwardUPIAmount": 0.0,
+                    "noOfOutwardUPICount": 0,
+                    "totalOutwardUPIAmount": 0.0,
+                    "noOfCardSettlement": 0,
+                    "totalCardSettlement": 0.0,
+                    "noOfInvestment": 0,
+                    "totalInvestmentAmount": 0.0,
+                    "noOfInvestmentIncome": 0,
+                    "totalInvestmentIncome": 0.0,
+                    "noOfUPISettlement": 0,
+                    "totalUPISettlementAmount": 0.0,
+                    "noOfUniqueDaysUPISettlement": 0,
+                    "totalObligationAmount": 0.0,
+                    "noOfSystemInitiatedTransaction": 0,
+                    "systemInitiatedTransactionAmount": 0.0,
+                    "noOfCustomerInitiatedTransaction": 1,
+                    "noOfNegativeEODBalance": 0,
+                    "noOfNEFTCredit": 0,
+                    "totalNEFTCreditAmount": 0.0,
+                    "noOfNEFTDebit": 0,
+                    "totalNEFTDebitAmount": 0.0,
+                    "noOfRTGSCredit": 0,
+                    "totalRTGSCreditAmount": 0.0,
+                    "noOfRTGSDebit": 0,
+                    "totalRTGSDebitAmount": 0.0,
+                    "noOfIMPSCredit": 0,
+                    "totalIMPSCreditAmount": 0.0,
+                    "noOfIMPSDebit": 0,
+                    "totalIMPSDebitAmount": 0.0,
+                    "noOfEMIBounceCharges": 0
+                }
+            ],
+            "transactions": [
+                {
+                    "id": 0,
+                    "transactionDate": 1738521000000,
+                    "narration": "BIL/INFT/EB3918255 4/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Fund Transfer",
+                    "cheque": "",
+                    "amount": 350000.0,
+                    "type": "Cr",
+                    "openingBalance": 0.0,
+                    "closingBalance": 350000.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": false,
+                    "holiday": false
+                },
+                {
+                    "id": 1,
+                    "transactionDate": 1738607400000,
+                    "narration": "Ac xfr from Sol 0038 to 1200",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Reversal",
+                    "cheque": "",
+                    "amount": 350000.0,
+                    "type": "Dr",
+                    "openingBalance": 350000.0,
+                    "closingBalance": 0.0,
+                    "monthYear": "Feb-2025",
+                    "name": "",
+                    "ignorableTransaction": true,
+                    "holiday": false
+                },
+                {
+                    "id": 2,
+                    "transactionDate": 1738607400000,
+                    "narration": "Ac xfr from Sol 0038 to 1200",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Reversal",
+                    "cheque": "",
+                    "amount": 350000.0,
+                    "type": "Cr",
+                    "openingBalance": 0.0,
+                    "closingBalance": 350000.0,
+                    "monthYear": "Feb-2025",
+                    "name": "",
+                    "ignorableTransaction": true,
+                    "holiday": false
+                },
+                {
+                    "id": 3,
+                    "transactionDate": 1738693800000,
+                    "narration": "BIL/INFT/EB5970006 5/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Fund Transfer",
+                    "cheque": "",
+                    "amount": 350000.0,
+                    "type": "Cr",
+                    "openingBalance": 350000.0,
+                    "closingBalance": 700000.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": false,
+                    "holiday": false
+                },
+                {
+                    "id": 4,
+                    "transactionDate": 1738780200000,
+                    "narration": "BIL/INFT/EBA991882 0/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Fund Transfer",
+                    "cheque": "",
+                    "amount": 910378.0,
+                    "type": "Cr",
+                    "openingBalance": 700000.0,
+                    "closingBalance": 1610378.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": false,
+                    "holiday": false
+                },
+                {
+                    "id": 5,
+                    "transactionDate": 1739298600000,
+                    "narration": "BIL/INFT/EBG085022 7/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Fund Transfer",
+                    "cheque": "",
+                    "amount": 1610378.0,
+                    "type": "Dr",
+                    "openingBalance": 1610378.0,
+                    "closingBalance": 0.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": false,
+                    "holiday": false
+                },
+                {
+                    "id": 6,
+                    "transactionDate": 1739385000000,
+                    "narration": "BIL/INFT/EBH11276 80/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Reversal",
+                    "cheque": "",
+                    "amount": 706286.0,
+                    "type": "Cr",
+                    "openingBalance": 0.0,
+                    "closingBalance": 706286.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": true,
+                    "holiday": false
+                },
+                {
+                    "id": 7,
+                    "transactionDate": 1739471400000,
+                    "narration": "BIL/INFT/EBI116880 5/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Reversal",
+                    "cheque": "",
+                    "amount": 706286.0,
+                    "type": "Dr",
+                    "openingBalance": 706286.0,
+                    "closingBalance": 0.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": true,
+                    "holiday": false
+                },
+                {
+                    "id": 8,
+                    "transactionDate": 1739557800000,
+                    "narration": "BIL/INFT/EBJ142843 1/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Reversal",
+                    "cheque": "",
+                    "amount": 1470000.0,
+                    "type": "Cr",
+                    "openingBalance": 0.0,
+                    "closingBalance": 1470000.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": true,
+                    "holiday": false
+                },
+                {
+                    "id": 9,
+                    "transactionDate": 1739730600000,
+                    "narration": "BIL/INFT/EBL155985 0/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Reversal",
+                    "cheque": "",
+                    "amount": 1470000.0,
+                    "type": "Dr",
+                    "openingBalance": 1470000.0,
+                    "closingBalance": 0.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": true,
+                    "holiday": false
+                },
+                {
+                    "id": 10,
+                    "transactionDate": 1739730600000,
+                    "narration": "BIL/INFT/EBL167065 9/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Reversal",
+                    "cheque": "",
+                    "amount": 58100.0,
+                    "type": "Cr",
+                    "openingBalance": 0.0,
+                    "closingBalance": 58100.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": true,
+                    "holiday": false
+                },
+                {
+                    "id": 11,
+                    "transactionDate": 1739817000000,
+                    "narration": "BIL/INFT/EBM17085 17/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Reversal",
+                    "cheque": "",
+                    "amount": 58100.0,
+                    "type": "Dr",
+                    "openingBalance": 58100.0,
+                    "closingBalance": 0.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": true,
+                    "holiday": false
+                },
+                {
+                    "id": 12,
+                    "transactionDate": 1739817000000,
+                    "narration": "BIL/INFT/EBM18152 78/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                    "paymentMode": "Other",
+                    "paymentCategory": "Fund Transfer",
+                    "cheque": "",
+                    "amount": 4631900.0,
+                    "type": "Cr",
+                    "openingBalance": 0.0,
+                    "closingBalance": 4631900.0,
+                    "monthYear": "Feb-2025",
+                    "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "ignorableTransaction": false,
+                    "holiday": false
+                }
+            ],
+            "fundRemittance": [
+                {
+                    "month": "Feb-2025",
+                    "totalAmount": "4194764.0",
+                    "transactions": [
+                        {
+                            "id": 5,
+                            "transactionDate": 1739298600000,
+                            "narration": "BIL/INFT/EBG085022 7/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Fund Transfer",
+                            "cheque": "",
+                            "amount": 1610378.0,
+                            "type": "Dr",
+                            "openingBalance": 1610378.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        },
+                        {
+                            "id": 9,
+                            "transactionDate": 1739730600000,
+                            "narration": "BIL/INFT/EBL155985 0/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Reversal",
+                            "cheque": "",
+                            "amount": 1470000.0,
+                            "type": "Dr",
+                            "openingBalance": 1470000.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": true,
+                            "holiday": false
+                        },
+                        {
+                            "id": 7,
+                            "transactionDate": 1739471400000,
+                            "narration": "BIL/INFT/EBI116880 5/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Reversal",
+                            "cheque": "",
+                            "amount": 706286.0,
+                            "type": "Dr",
+                            "openingBalance": 706286.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": true,
+                            "holiday": false
+                        },
+                        {
+                            "id": 1,
+                            "transactionDate": 1738607400000,
+                            "narration": "Ac xfr from Sol 0038 to 1200",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Reversal",
+                            "cheque": "",
+                            "amount": 350000.0,
+                            "type": "Dr",
+                            "openingBalance": 350000.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Feb-2025",
+                            "name": "",
+                            "ignorableTransaction": true,
+                            "holiday": false
+                        },
+                        {
+                            "id": 11,
+                            "transactionDate": 1739817000000,
+                            "narration": "BIL/INFT/EBM17085 17/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Reversal",
+                            "cheque": "",
+                            "amount": 58100.0,
+                            "type": "Dr",
+                            "openingBalance": 58100.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": true,
+                            "holiday": false
+                        }
+                    ]
+                }
+            ],
+            "fundReceived": [
+                {
+                    "month": "Feb-2025",
+                    "totalAmount": "8068564.0",
+                    "transactions": [
+                        {
+                            "id": 12,
+                            "transactionDate": 1739817000000,
+                            "narration": "BIL/INFT/EBM18152 78/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Fund Transfer",
+                            "cheque": "",
+                            "amount": 4631900.0,
+                            "type": "Cr",
+                            "openingBalance": 0.0,
+                            "closingBalance": 4631900.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        },
+                        {
+                            "id": 8,
+                            "transactionDate": 1739557800000,
+                            "narration": "BIL/INFT/EBJ142843 1/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Reversal",
+                            "cheque": "",
+                            "amount": 1470000.0,
+                            "type": "Cr",
+                            "openingBalance": 0.0,
+                            "closingBalance": 1470000.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": true,
+                            "holiday": false
+                        },
+                        {
+                            "id": 4,
+                            "transactionDate": 1738780200000,
+                            "narration": "BIL/INFT/EBA991882 0/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Fund Transfer",
+                            "cheque": "",
+                            "amount": 910378.0,
+                            "type": "Cr",
+                            "openingBalance": 700000.0,
+                            "closingBalance": 1610378.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        },
+                        {
+                            "id": 6,
+                            "transactionDate": 1739385000000,
+                            "narration": "BIL/INFT/EBH11276 80/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Reversal",
+                            "cheque": "",
+                            "amount": 706286.0,
+                            "type": "Cr",
+                            "openingBalance": 0.0,
+                            "closingBalance": 706286.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": true,
+                            "holiday": false
+                        },
+                        {
+                            "id": 0,
+                            "transactionDate": 1738521000000,
+                            "narration": "BIL/INFT/EB3918255 4/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": "Other",
+                            "paymentCategory": "Fund Transfer",
+                            "cheque": "",
+                            "amount": 350000.0,
+                            "type": "Cr",
+                            "openingBalance": 0.0,
+                            "closingBalance": 350000.0,
+                            "monthYear": "Feb-2025",
+                            "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        }
+                    ]
+                }
+            ],
+            "dailyBalances": [
+                {
+                    "month": "Feb-2025",
+                    "dailyBalance": [
+                        {
+                            "date": 1738348200000,
+                            "openingBalance": 0.0,
+                            "closingBalance": 0.0
+                        },
+                        {
+                            "date": 1738434600000,
+                            "openingBalance": 0.0,
+                            "closingBalance": 0.0
+                        },
+                        {
+                            "date": 1738521000000,
+                            "openingBalance": 0.0,
+                            "closingBalance": 350000.0
+                        },
+                        {
+                            "date": 1738607400000,
+                            "openingBalance": 350000.0,
+                            "closingBalance": 350000.0
+                        },
+                        {
+                            "date": 1738693800000,
+                            "openingBalance": 350000.0,
+                            "closingBalance": 700000.0
+                        },
+                        {
+                            "date": 1738780200000,
+                            "openingBalance": 700000.0,
+                            "closingBalance": 1610378.0
+                        },
+                        {
+                            "date": 1738866600000,
+                            "openingBalance": 1610378.0,
+                            "closingBalance": 1610378.0
+                        },
+                        {
+                            "date": 1738953000000,
+                            "openingBalance": 1610378.0,
+                            "closingBalance": 1610378.0
+                        },
+                        {
+                            "date": 1739039400000,
+                            "openingBalance": 1610378.0,
+                            "closingBalance": 1610378.0
+                        },
+                        {
+                            "date": 1739125800000,
+                            "openingBalance": 1610378.0,
+                            "closingBalance": 1610378.0
+                        },
+                        {
+                            "date": 1739212200000,
+                            "openingBalance": 1610378.0,
+                            "closingBalance": 1610378.0
+                        },
+                        {
+                            "date": 1739298600000,
+                            "openingBalance": 1610378.0,
+                            "closingBalance": 0.0
+                        },
+                        {
+                            "date": 1739385000000,
+                            "openingBalance": 0.0,
+                            "closingBalance": 706286.0
+                        },
+                        {
+                            "date": 1739471400000,
+                            "openingBalance": 706286.0,
+                            "closingBalance": 0.0
+                        },
+                        {
+                            "date": 1739557800000,
+                            "openingBalance": 0.0,
+                            "closingBalance": 1470000.0
+                        },
+                        {
+                            "date": 1739644200000,
+                            "openingBalance": 1470000.0,
+                            "closingBalance": 1470000.0
+                        },
+                        {
+                            "date": 1739730600000,
+                            "openingBalance": 1470000.0,
+                            "closingBalance": 58100.0
+                        },
+                        {
+                            "date": 1739817000000,
+                            "openingBalance": 58100.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1739903400000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1739989800000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1740076200000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1740162600000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1740249000000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1740335400000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1740421800000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1740508200000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1740594600000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        },
+                        {
+                            "date": 1740681000000,
+                            "openingBalance": 4631900.0,
+                            "closingBalance": 4631900.0
+                        }
+                    ]
+                }
+            ],
+            "fraudIndicators": [
+                {
+                    "name": "Equal Credit Debit ",
+                    "description": " Total amount of credit/debit or total number of credit/debit cannot be same. Both scenarios are extremly unlikely.",
+                    "transactions": []
+                },
+                {
+                    "name": "Amount Balance Mismatch ",
+                    "description": " Transaction whose amount/balance do not match with previous transactions.",
+                    "transactions": []
+                },
+                {
+                    "name": "Cash Deposit On Holiday ",
+                    "description": " Cash deposit transactions happening on bank holiday",
+                    "transactions": []
+                },
+                {
+                    "name": "Cash Withdrawal on Holiday ",
+                    "description": " Cash withdrawal transactions happening on bank holiday",
+                    "transactions": []
+                },
+                {
+                    "name": "Cheque Deposits on Holiday ",
+                    "description": " Total number of cheque deposited on bank holiday",
+                    "transactions": []
+                },
+                {
+                    "name": "Cheque Withdrawal on Holiday ",
+                    "description": " Cheque withdrawals transactions happening on bank holiday",
+                    "transactions": []
+                },
+                {
+                    "name": "Suspicious RTGS Transactions ",
+                    "description": " RTGS transaction have a minimum amount limit as prescribed by RBI.",
+                    "transactions": []
+                },
+                {
+                    "name": "Suspicious ATM Withdrawals ",
+                    "description": " ATM Withdrawals having amount not being multiple of 100 or outside of permissible range.",
+                    "transactions": []
+                },
+                {
+                    "name": "Suspicious IMPS Transactions ",
+                    "description": " IMPS transactions must meet the maximum amount per day limit prescribed by RBI",
+                    "transactions": []
+                },
+                {
+                    "name": "Majority of transactions in round figures ",
+                    "description": " A majority of total Debit and Credit transactions are in round figures",
+                    "transactions": []
+                },
+                {
+                    "name": "UPI Transactions Above Threshold ",
+                    "description": " UPI transactions must meet the maximum amount per day limit prescribed by RBI",
+                    "transactions": []
+                },
+                {
+                    "name": "Account with Low vintage ",
+                    "description": " The account opening date is available/fetched, and the account opening date is less than a year from the report's generated date",
+                    "transactions": []
+                },
+                {
+                    "name": "Cash Deposits greater than twice the AMB ",
+                    "description": " Cash Deposits greater than 2X of the Average Monthly Balance",
+                    "transactions": []
+                },
+                {
+                    "name": "Irregular Transfers to Parties ",
+                    "description": " Transactions categegorised as Fund Transfers which are not in all months within a narrow date range.",
+                    "transactions": []
+                },
+                {
+                    "name": "Irregular Interest Charges ",
+                    "description": " Interest Charges which are not in all months within narrow date range.",
+                    "transactions": []
+                },
+                {
+                    "name": "Parties present in both Debits and Credits ",
+                    "description": " List of parties that are both suppliers and buyers",
+                    "transactions": [
+                        {
+                            "id": 0,
+                            "transactionDate": null,
+                            "narration": "SPL RERA DESIGNABDSPL RERA DESI",
+                            "paymentMode": null,
+                            "paymentCategory": null,
+                            "cheque": null,
+                            "amount": 0.0,
+                            "type": null,
+                            "openingBalance": 0.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Overall",
+                            "name": null,
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        }
+                    ]
+                },
+                {
+                    "name": "Parties present in both Debits and Credits where total Credit amount is more than 10% of Average Monthly Balance ",
+                    "description": " Parties appearing in both Credit and Debit, where Credit exceeds the Average Monthly Balance by >10% of AMB",
+                    "transactions": [
+                        {
+                            "id": 0,
+                            "transactionDate": null,
+                            "narration": "SPL RERA DESIGNABDSPL RERA DESI - Total Credit amount (6242278.00) is greater than 10% of the AMB (2347055.50).",
+                            "paymentMode": null,
+                            "paymentCategory": null,
+                            "cheque": null,
+                            "amount": 0.0,
+                            "type": null,
+                            "openingBalance": 0.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Overall",
+                            "name": null,
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        }
+                    ]
+                },
+                {
+                    "name": "Discontinuity in credits/ receivables ",
+                    "description": " For non-retail customers, identify if the delay between two successive Credits is more than 15 days",
+                    "transactions": []
+                },
+                {
+                    "name": "Unusual Activity Of OD/CC Account ",
+                    "description": " The count of Debits/Credits on a single day is less/greater than 50% of the average monthly transaction count",
+                    "transactions": []
+                },
+                {
+                    "name": "No Monthly POS transactions ",
+                    "description": " Months for which there are no POS transactions",
+                    "transactions": [
+                        {
+                            "id": 0,
+                            "transactionDate": null,
+                            "narration": "No POS transaction found in this month.",
+                            "paymentMode": null,
+                            "paymentCategory": null,
+                            "cheque": null,
+                            "amount": 0.0,
+                            "type": null,
+                            "openingBalance": 0.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Feb-2025",
+                            "name": null,
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        }
+                    ]
+                },
+                {
+                    "name": "Irregular Transactions ",
+                    "description": " Credit transactions are less than 20",
+                    "transactions": [
+                        {
+                            "id": 0,
+                            "transactionDate": null,
+                            "narration": "Number of credits are (8) less than 20.",
+                            "paymentMode": null,
+                            "paymentCategory": null,
+                            "cheque": null,
+                            "amount": 0.0,
+                            "type": null,
+                            "openingBalance": 0.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Feb-2025",
+                            "name": null,
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        }
+                    ]
+                },
+                {
+                    "name": "Debit Interest not reflecting ",
+                    "description": " Debit Interest not reflecting",
+                    "transactions": [
+                        {
+                            "id": 0,
+                            "transactionDate": null,
+                            "narration": "No Interest Debited from this account.",
+                            "paymentMode": null,
+                            "paymentCategory": null,
+                            "cheque": null,
+                            "amount": 0.0,
+                            "type": null,
+                            "openingBalance": 0.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Overall",
+                            "name": null,
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        }
+                    ]
+                },
+                {
+                    "name": "Minimal NEFT and RTGS transactions in non-individual account.Most of the debit transactions are IMPS and UPI which is unusual. (>50%) ",
+                    "description": " Minimal NEFT and RTGS transactions in non-individual account.Most of the transactions are IMPS and UPI which is unusual.",
+                    "transactions": []
+                },
+                {
+                    "name": "Round Figure Tax Payment ",
+                    "description": " Tax paid amounts are usually not in round figures (multiple of 100).",
+                    "transactions": []
+                },
+                {
+                    "name": "Credit followed only by ATM/Cash Withdrawal and UPI Debits ",
+                    "description": " Credit through Cheque/NEFT/RTGS/Cash Deposit followed by only ATM/Cash Withdrawal and UPI Debits. No EMI transaction/ NEFT/ Auto transfer /RTGS",
+                    "transactions": []
+                },
+                {
+                    "name": "No Transactions in the Expected Range ",
+                    "description": " Months with no transactions before the 5th and after the 20th",
+                    "transactions": []
+                },
+                {
+                    "name": "Only cash transactions ",
+                    "description": " Maximum transactions involve Cash deposits or withdrawals",
+                    "transactions": []
+                },
+                {
+                    "name": "Rotation of Money ",
+                    "description": " Cyclic deposit of funds into an account and withdrawal/transfer of funds to another account after getting promotional interest or bonus from a promotional scheme of a bank",
+                    "transactions": []
+                },
+                {
+                    "name": "Cheque No. should not be in series ",
+                    "description": " Cheque numbers should not be in series",
+                    "transactions": []
+                },
+                {
+                    "name": "Immediate cash withdrawals after cash deposit ",
+                    "description": " Withdrawal of huge % of cash deposited within less amount of time Cash transactions to inflate and show volume of business transaction",
+                    "transactions": []
+                },
+                {
+                    "name": "NEFT/IMPS with Cheque No. ",
+                    "description": " Total number of NEFT/IMPS Transactions entry with Cheque Number",
+                    "transactions": []
+                },
+                {
+                    "name": "Irregular EMI Transactions ",
+                    "description": " EMI/ECS transactions that do not occur on The same day of each month",
+                    "transactions": []
+                },
+                {
+                    "name": "Low Transactions ",
+                    "description": " Months where the total number of transactions is less than 5",
+                    "transactions": []
+                },
+                {
+                    "name": "Consecutive EMI Bounces ",
+                    "description": " Consecutive EMI bounces observed for the period",
+                    "transactions": []
+                },
+                {
+                    "name": "NEFT/RTGS Deposits greater than twice the AMB ",
+                    "description": " NEFT/RTGS transactions greater than 2X of the Average Monthly Balance",
+                    "transactions": []
+                },
+                {
+                    "name": "Only ATM Debits seen in any of the last three months ",
+                    "description": " Only ATM Debits observed in any of the last 3 months",
+                    "transactions": []
+                },
+                {
+                    "name": "Account Holder Name Verification ",
+                    "description": " This involves verifying if the name of the account holder as provided by the beneficiary bank does not matches the name provided in the bank statement.",
+                    "transactions": []
+                },
+                {
+                    "name": "Suspicious Gaming Transactions ",
+                    "description": " Count and amount of gaming transactions above a threshold amount",
+                    "transactions": []
+                },
+                {
+                    "name": "Credits from non-business source ",
+                    "description": " Credits from non-business source/salary (loan disbursal/FD mature/PF credit, ITR Refund, Insurance claim credit, MF & FD redemption, etc by which ABB gets inflated)",
+                    "transactions": []
+                },
+                {
+                    "name": "Penny drop transaction ",
+                    "description": " Rs 1 debit or credit in recent bank account indicating customer has applied loan application in competition",
+                    "transactions": []
+                },
+                {
+                    "name": "Low Closing Balance ",
+                    "description": " Closing Balance of any day in a Month is <10% of AQB.",
+                    "transactions": [
+                        {
+                            "id": 0,
+                            "transactionDate": null,
+                            "narration": "5 Out of 28 days has Closing Balance less than 10% of Average quarterly balance (234705.55)",
+                            "paymentMode": null,
+                            "paymentCategory": null,
+                            "cheque": null,
+                            "amount": 0.0,
+                            "type": null,
+                            "openingBalance": 0.0,
+                            "closingBalance": 0.0,
+                            "monthYear": "Feb-2025",
+                            "name": null,
+                            "ignorableTransaction": false,
+                            "holiday": false
+                        }
+                    ]
+                }
+            ],
+            "fraudScore": 0.0,
+            "salary": null,
+            "emi": [],
+            "chequeBounces": [
+                {
+                    "month": "Feb-2025",
+                    "transactions": []
+                }
+            ],
+            "billPayments": null,
+            "income": {},
+            "statutoryPayments": {},
+            "recurringIncome": [],
+            "recurringExpense": [],
+            "gstr3bDetails": null,
+            "matchedCibil": null,
+            "unmatchedCibil": null,
+            "creditCardSettlement": [],
+            "form26AS": null,
+            "itrV": null,
+            "itr": null,
+            "gst": null,
+            "observations": null,
+            "top10Buyers": [
+                {
+                    "entity": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "amount": 6242278.0
+                }
+            ],
+            "top10Suppliers": [
+                {
+                    "entity": "SPL RERA DESIGNABDSPL RERA DESI",
+                    "amount": 1610378.0
+                }
+            ],
+            "creditCardDetails": null,
+            "expense": {},
+            "tradeCredit": {
+                "Feb-2025": [
+                    {
+                        "id": 0,
+                        "transactionDate": 1738521000000,
+                        "narration": "BIL/INFT/EB3918255 4/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                        "paymentMode": "Other",
+                        "paymentCategory": "Fund Transfer",
+                        "cheque": "",
+                        "amount": 350000.0,
+                        "type": "Cr",
+                        "openingBalance": 0.0,
+                        "closingBalance": 350000.0,
+                        "monthYear": "Feb-2025",
+                        "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                        "ignorableTransaction": false,
+                        "holiday": false
+                    },
+                    {
+                        "id": 3,
+                        "transactionDate": 1738693800000,
+                        "narration": "BIL/INFT/EB5970006 5/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                        "paymentMode": "Other",
+                        "paymentCategory": "Fund Transfer",
+                        "cheque": "",
+                        "amount": 350000.0,
+                        "type": "Cr",
+                        "openingBalance": 350000.0,
+                        "closingBalance": 700000.0,
+                        "monthYear": "Feb-2025",
+                        "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                        "ignorableTransaction": false,
+                        "holiday": false
+                    },
+                    {
+                        "id": 4,
+                        "transactionDate": 1738780200000,
+                        "narration": "BIL/INFT/EBA991882 0/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                        "paymentMode": "Other",
+                        "paymentCategory": "Fund Transfer",
+                        "cheque": "",
+                        "amount": 910378.0,
+                        "type": "Cr",
+                        "openingBalance": 700000.0,
+                        "closingBalance": 1610378.0,
+                        "monthYear": "Feb-2025",
+                        "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                        "ignorableTransaction": false,
+                        "holiday": false
+                    },
+                    {
+                        "id": 12,
+                        "transactionDate": 1739817000000,
+                        "narration": "BIL/INFT/EBM18152 78/DES-FT from 003805016073 BDSPL RERA DESIGNABDSPL RERA DESI",
+                        "paymentMode": "Other",
+                        "paymentCategory": "Fund Transfer",
+                        "cheque": "",
+                        "amount": 4631900.0,
+                        "type": "Cr",
+                        "openingBalance": 0.0,
+                        "closingBalance": 4631900.0,
+                        "monthYear": "Feb-2025",
+                        "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                        "ignorableTransaction": false,
+                        "holiday": false
+                    }
+                ]
+            },
+            "tradeDebit": {
+                "Feb-2025": [
+                    {
+                        "id": 5,
+                        "transactionDate": 1739298600000,
+                        "narration": "BIL/INFT/EBG085022 7/DES-FT from 003805016072 BDSPL RERA DESIGNABDSPL RERA DESI",
+                        "paymentMode": "Other",
+                        "paymentCategory": "Fund Transfer",
+                        "cheque": "",
+                        "amount": 1610378.0,
+                        "type": "Dr",
+                        "openingBalance": 1610378.0,
+                        "closingBalance": 0.0,
+                        "monthYear": "Feb-2025",
+                        "name": "SPL RERA DESIGNABDSPL RERA DESI",
+                        "ignorableTransaction": false,
+                        "holiday": false
+                    }
+                ]
+            },
+            "nonTradeCredit": {
+                "Feb-2025": []
+            },
+            "nonTradeDebit": {
+                "Feb-2025": []
+            },
+            "paySlipVsBS": null,
+            "salarySlip": null,
+            "mcaReportData": null,
+            "bsPnLData": null,
+            "bsaCreditData": null,
+            "cibilAnalysis": null,
+            "consolidatedSummaryDataPoints": null
+        }
+    ],
+    "reportURL": null,
+    "reportData": null,
+    "reportFileName": null,
+    "fileDetails": [
+        {
+            "accountNumber": "003805016072",
+            "fileName": "tmpciy41g_0.pdf",
+            "pageCount": 2,
+            "fraudFile": null,
+            "periodStart": null,
+            "periodEnd": null,
+            "accountName": null,
+            "bankName": null,
+            "password": null,
+            "ocr": false
+        }
+    ],
+    "error": false
+}

@@ -13,10 +13,12 @@ import hashlib
 import re
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-
+from dotenv import load_dotenv
 
 CACHE_DIR = "pdf_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+load_dotenv()
 
 GOOGLE_API_KEY = os.getenv('GEMINI_API_KEY')
 OPENAI_API_KEY = os.getenv('OPEN_AI_API_KEY')

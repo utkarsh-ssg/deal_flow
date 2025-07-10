@@ -14,7 +14,7 @@ from utils.utils import *
 load_dotenv()
 
 
-st.set_page_config(page_title="Developer Dashboard", layout="wide")
+st.set_page_config(page_title="Dashboard", layout="wide")
 
 def load_css(file_name):
     with open(file_name) as f:
@@ -36,7 +36,7 @@ if 'file_hash' not in st.session_state:
 
 
 def step_1():
-    st.title('Developer Dashboard')
+    st.title('Dashboard')
     st.write('Upload the Sanction Letter to extract relevant milestones and conditions.')
 
     uploaded_file = st.file_uploader("Upload sanction letter", type="pdf")
@@ -122,7 +122,6 @@ def step_1():
 
             st.subheader("Preview of extracted data:")
             data = st.session_state["parsed_data"]
-            print("data",data)
 
             if "table_data" in data:
                 st.subheader("Sanction Letter Data:")
@@ -197,15 +196,11 @@ def step_2():
                             comparison_results[sheet] = {"error": "Sold/Unsold column missing", "data": df2}
                             continue
     
-                        
                         possible_id_cols = ["Project ID", "Sl No.", "Sr. No.", "ID"]
                         id_column = next((col for col in possible_id_cols if col in df1.columns and col in df2.columns), df1.columns[0])
     
                         if id_column == df1.columns[0] and id_column not in possible_id_cols:
                             st.warning(f"Using '{id_column}' as identifier for comparison. Please ensure rows match correctly.")
-    
-                        # st.write("**Status Changes Legend:**")
-                        # st.markdown("🟢 <span style='color:green'>Green</span>: Unsold → Sold &nbsp;&nbsp;&nbsp; 🔴 <span style='color:red'>Red</span>: Sold → Unsold", unsafe_allow_html=True)
     
                         comparison_df = df2.copy()
                         status_map = dict(zip(df1[id_column], df1["Sold/Unsold"].astype(str).str.strip()))
@@ -244,30 +239,107 @@ def step_2():
                                                   for id_val, row in comparison_df.iterrows() if id_val in status_map)
                             }
                         }
+                        
+                        
+                        delta_df_raw = []
+                        delta_styles = []
+
+                        df1_indexed = df1.set_index(id_column).astype(str).fillna("")
+                        df2_indexed = df2.set_index(id_column).astype(str).fillna("")
+
+                        common_ids = df1_indexed.index.intersection(df2_indexed.index)
+
+                        for idx in common_ids:
+                            row_old = df1_indexed.loc[idx]
+                            row_new = df2_indexed.loc[idx]
+
+                            
+                            diff_mask = row_old != row_new
+                            if diff_mask.any():
+                                delta_row = row_new.copy()
+                                delta_row.name = idx
+                                delta_df_raw.append(delta_row)
+                                
+                                
+                                row_style = ['']
+                                row_style.extend([
+                                    'background-color: rgba(255, 230, 150, 0.8); color: black;' if diff else ''
+                                    for diff in diff_mask
+                                ])
+                                delta_styles.append(row_style)
+
+                        if delta_df_raw:
+                            delta_df = pd.DataFrame(delta_df_raw)
+                            delta_df.insert(0, id_column, delta_df.index)
+                            delta_df.reset_index(drop=True, inplace=True)
+
+                            st.markdown("### Delta Table")
+                            
+                            
+                            def apply_delta_styles(row):
+                                row_idx = row.name
+                                if row_idx < len(delta_styles):
+                                    return delta_styles[row_idx]
+                                else:
+                                    return [''] * len(row)
+                            
+                            styled_delta_df = delta_df.style.apply(apply_delta_styles, axis=1)
+                            st.write(styled_delta_df)
+                            comparison_results[sheet]["delta_table"] = delta_df
+                        else:
+                            st.markdown("### 🔁 Delta Table")
+                            st.info("No changes found apart from 'Sold/Unsold' status.")
+                 
                     elif sheet == "COP-MOF" and sheet in xls2.sheet_names:
                         df1 = pd.read_excel(xls1, sheet_name=sheet, header=None)
                         df2 = pd.read_excel(xls2, sheet_name=sheet, header=None)
-                        new_header = df2.iloc[2]
-                        df2 = df2[3:]
-                        df2.columns = new_header
-                        df2.reset_index(drop=True, inplace=True)
-                        df2.columns = df2.columns.astype(str).str.strip()
 
-                        new_header = df1.iloc[2]
+                        
+                        header1 = df1.iloc[2]
                         df1 = df1[3:]
-                        df1.columns = new_header
+                        df1.columns = header1
                         df1.reset_index(drop=True, inplace=True)
                         df1.columns = df1.columns.astype(str).str.strip()
 
+                        header2 = df2.iloc[2]
+                        df2 = df2[3:]
+                        df2.columns = header2
+                        df2.reset_index(drop=True, inplace=True)
+                        df2.columns = df2.columns.astype(str).str.strip()
+
                         
+                        min_rows = min(len(df1), len(df2))
+                        min_cols = min(len(df1.columns), len(df2.columns))
+
+                        df1_aligned = df1.iloc[:min_rows, :min_cols].astype(str).fillna("").replace("nan", "")
+                        df2_aligned = df2.iloc[:min_rows, :min_cols].astype(str).fillna("").replace("nan", "")
+                        df2_aligned.columns = df2_aligned.columns.astype(str).str.strip()
+
                         
-                        styled_df = df2.style.format(lambda x: f"{x:.2f}" if isinstance(x, (int, float)) and not pd.isna(x) else x).applymap(lambda _: 'background-color: #FFFFFF; color: #333333')
+                        styles = []
+                        for i in range(min_rows):
+                            row_styles = []
+                            for j in range(min_cols):
+                                val1 = df1_aligned.iat[i, j]
+                                val2 = df2_aligned.iat[i, j]
+                                if val1 != val2:
+                                    row_styles.append("background-color: rgba(255, 230, 150, 0.8); color: black;")
+                                else:
+                                    row_styles.append("")
+                            styles.append(row_styles)
+
+                        styled_df = df2_aligned.style.apply(lambda row: styles[row.name], axis=1)
+
+                        st.markdown("### Delta COP-MOF Table")
                         st.write(styled_df)
+
                         comparison_results[sheet] = {
                             "df1": df1,
-                            "df2": df2
+                            "df2": df2,
+                            "diffs": df2_aligned
                         }
-    
+
+
                     else:
                         styled_df = df2.style.applymap(lambda _: 'background-color: #FFFFFF; color: #333333')
                         st.write(styled_df)
@@ -287,6 +359,7 @@ def step_2():
     else:
         st.info("Please upload both MIS files.")
         st.button("Back", on_click=go_to_step, args=(1,))
+
 
 def step_3():
     st.title('Disbursement Request Form')
@@ -533,15 +606,17 @@ def step_3():
         st.button("Next", on_click=go_to_step, args=(4,))
 
 def step_4():
-    st.title("Bank Statement Summary")
+    st.title("Bank Statements Summary")
 
-    st.write('Upload the Bank Statement')
+    st.write('Upload the Bank Statements')
 
     UPLOAD_URL = "https://cartuat.com/api/upload"
     DOWNLOAD_URL = "https://cartuat.com/api/downloadFile"
     AUTH_TOKEN = "API://QFEreQJLUvIWHKSLliicNPOC/MYh9B7dCo95Chz2rT2Sgf9ihi53EpD8LigFS/tw"
 
-    uploaded_file = st.file_uploader("Upload bank statement", type="pdf")
+    uploaded_file = st.file_uploader("Upload Collection Bank statement", type="pdf")
+    uploaded_file2 = st.file_uploader("Upload Corporate Bank statement", type="pdf")
+    uploaded_file3 = st.file_uploader("Upload Project statement", type="pdf")
     creditTransactionAmount = 0
     if uploaded_file is not None:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
@@ -585,6 +660,7 @@ def step_4():
             
             try:
                 doc_id = upload_response.json().get("docId")
+                
 
                 if doc_id:
                     time.sleep(10)
@@ -681,161 +757,231 @@ def step_4():
                 st.error("Failed to parse upload response.")
                 st.text(str(e))
 
+            step2 = st.session_state.get("step_2_data")
+            if step2:
+                st.header("COP-MOF Data")
+                for sheet, data in step2.items():
+                    if isinstance(data, dict) and sheet == "COP-MOF":
+                        def render_styled_table(df, title):
+                            st.subheader(title)
+                            styled_html = df.to_html(classes='custom-table', index=False)
+                            st.markdown(styled_html, unsafe_allow_html=True)
+
+                        
+                        st.markdown("""
+                            <style>
+                            .custom-table {
+                                border-collapse: collapse;
+                                width: 100%;
+                                font-family: Arial, sans-serif;
+                                border-radius: 8px;
+                                overflow: hidden;
+                            }
+                            .custom-table th, .custom-table td {
+                                border: 1px solid #ddd;
+                                padding: 10px;
+                                text-align: left;
+                                color: #333333;
+                                background-color: #FFFFFF;
+                            }
+                            .custom-table th {
+                                background-color: #E0E0E0;
+                                font-weight: bold;
+                            }
+                            .custom-table tr:nth-child(even) {
+                                background-color: #F5F5F5;
+                            }
+                            .custom-table tr:hover {
+                                background-color: #D3E3FC;
+                            }
+                            </style>
+                        """, unsafe_allow_html=True)
+
+                        
+                        df1 = data['df1']
+                        df2 = data['df2']
+                        bank_funds = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
+                        mean_of_finance = df2.loc[df2["PARTICULARS"].str.strip() == "MEANS OF FINANCE", "Incurred"].values
+                        total_a = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
+                        cust_adv_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
+                        cust_adv_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
+                        promoter_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
+                        promoter_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
+                        bank_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
+                        bank_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
+                        total_a_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
+                        total_a_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
+                        
+                        
+
+                        if uploaded_file and cust_adv_2.size > 0:
+                            cust_adv_incurred = float(cust_adv_2[0])
+                            creditTransactionAmount = creditTransactionAmount/100000000
+                            if creditTransactionAmount < cust_adv_incurred:
+                                st.markdown(f"""
+                                <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
+                                    <b>Red Flag:</b><br>
+                                    Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) is less than Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
+                                    <b>Green Flag:</b><br>
+                                    Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) covers Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
+                                </div>
+                                """, unsafe_allow_html=True)
+                        
+                        render_styled_table(data["df2"], f"COP-MOF Current")
+
+                        card_html = """
+                        <style>
+                        .card-container {
+                            display: flex;
+                            flex-wrap: wrap;
+                            justify-content: space-between;
+                            gap: 20px;
+                        }
+                        .card {
+                            flex: 0 0 32%;
+                            background-color: #ffffff;
+                            padding: 15px;
+                            border-radius: 12px;
+                            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                            box-sizing: border-box;
+                            color: #333;
+                            font-family: Arial, sans-serif;
+                        }
+                        .card b {
+                            color: #000;
+                            font-size: 16px;
+                        }
+                        @media (max-width: 768px) {
+                            .card {
+                                flex: 0 0 100%;
+                            }
+                        }
+                        </style>
+                        <div class="card-container">
+                        """
+
+                        
+                        cards = []
+
+                        
+                        if bank_funds.size > 0:
+                            value = float(bank_funds[0]) / 100.0
+                            cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Obligation:</b><br>₹{value:.2f} Cr</div>")
+
+                        
+                        if mean_of_finance.size > 0 and total_a.size > 0:
+                            value = float(mean_of_finance[0]) - float(total_a[0])
+                            cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Balance:</b><br>₹{value:.2f} Cr</div>")
+
+                        
+                        if cust_adv_2.size > 0 and cust_adv_1.size > 0:
+                            value = float(cust_adv_2[0]) - float(cust_adv_1[0])
+                            cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Change in Customer Advance:</b><br>₹{value:.2f} Cr</div>")
+
+                        
+                        if promoter_funds_2.size > 0 and promoter_funds_1.size > 0:
+                            value = float(promoter_funds_2[0]) - float(promoter_funds_1[0])
+                            cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>Change in Promoter Funds:</b><br>₹{value:.2f} Cr</div>")
+
+                        
+                        if bank_funds_2.size > 0 and bank_funds_1.size > 0:
+                            value = float(bank_funds_2[0]) - float(bank_funds_1[0])
+                            cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Change in Bank Funds:</b><br>₹{value:.2f} Cr</div>")
+
+                        
+                        if total_a_2.size > 0 and total_a_1.size > 0:
+                            value = float(total_a_2[0]) - float(total_a_1[0])
+                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Change in Total (A):</b><br>₹{value:.2f} Cr</div>")
+
+                        
+                        card_html += "\n".join(cards) + "</div>"
+
+                        
+                        html(card_html, height=200)
+
+
+                    if isinstance(data, dict) and sheet == "MIS":
+                        df2 = data['df2']
+                        df1 = data['df1']
+                        
+                        # Ensure required columns exist
+                        required_cols = {"Flat no", "Agreement value", "Amount Receivable", "Sold/Unsold"}
+                        if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
+                            st.warning("Required columns missing in MIS data.")
+                            return
+
+                        # Track NOC status
+                        ready_for_noc = []
+                        pending_for_noc = []
+
+                        df1_map = df1.set_index("Flat no")
+                        df2_map = df2.set_index("Flat no")
+
+                        common_flats = set(df1_map.index).intersection(df2_map.index)
+                        delta_total = 0
+
+                        for flat_no in common_flats:
+                            prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+                            curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+
+                            if curr_status == "sold":
+                                try:
+                                    agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
+                                    amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
+                                    received2 = agreement_value2 - amount_receivable2
+
+                                    agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
+                                    amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
+                                    received1 = agreement_value1 - amount_receivable1
+
+                                    delta = received2 - received1
+                                    delta_total += delta
+
+                                    
+
+                                    if received2 > 0.15 * agreement_value2:
+                                        ready_for_noc.append(flat_no)
+                                    else:
+                                        pending_for_noc.append(flat_no)
+
+                                except Exception as e:
+                                    st.warning(f"Data error in Flat {flat_no}: {e}")
+                                    continue
+
+                        
+
+                        st.markdown("NOC Status from MIS + Bank Statement")
+                        
+                        if ready_for_noc:
+                            st.markdown("### ✅ Units which are Ready for NOC ")
+                            for item in ready_for_noc:
+                                st.markdown(f"- {item}")
+
+                        if pending_for_noc:
+                            st.markdown("### ❌ Units which are Pending for NOC")
+                            for item in pending_for_noc:
+                                st.markdown(f"- {item}")
+
+
+                        required_in_bank = delta_total + 0.05 * delta_total - 0.01 * delta_total
+
+                        # minimum account balance should be greater than equal to required_in_bank
+
+
+
+
+            else:
+                st.warning("Step 2 data missing.")
+
         else:
             st.error(f"Upload failed. Status code: {upload_response.status_code}")
             st.text(upload_response.text)
 
-    
-    step2 = st.session_state.get("step_2_data")
-    if step2:
-        st.header("COP-MOF Data")
-        for sheet, data in step2.items():
-            if isinstance(data, dict) and sheet == "COP-MOF":
-                def render_styled_table(df, title):
-                    st.subheader(title)
-                    styled_html = df.to_html(classes='custom-table', index=False)
-                    st.markdown(styled_html, unsafe_allow_html=True)
-
-                
-                st.markdown("""
-                    <style>
-                    .custom-table {
-                        border-collapse: collapse;
-                        width: 100%;
-                        font-family: Arial, sans-serif;
-                        border-radius: 8px;
-                        overflow: hidden;
-                    }
-                    .custom-table th, .custom-table td {
-                        border: 1px solid #ddd;
-                        padding: 10px;
-                        text-align: left;
-                        color: #333333;
-                        background-color: #FFFFFF;
-                    }
-                    .custom-table th {
-                        background-color: #E0E0E0;
-                        font-weight: bold;
-                    }
-                    .custom-table tr:nth-child(even) {
-                        background-color: #F5F5F5;
-                    }
-                    .custom-table tr:hover {
-                        background-color: #D3E3FC;
-                    }
-                    </style>
-                """, unsafe_allow_html=True)
-
-                
-                df1 = data['df1']
-                df2 = data['df2']
-                bank_funds = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                mean_of_finance = df2.loc[df2["PARTICULARS"].str.strip() == "MEANS OF FINANCE", "Incurred"].values
-                total_a = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
-                cust_adv_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
-                cust_adv_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
-                promoter_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
-                promoter_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
-                bank_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                bank_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                total_a_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
-                total_a_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
-                
-                
-
-                if uploaded_file and cust_adv_2.size > 0:
-                    cust_adv_incurred = float(cust_adv_2[0])
-                    creditTransactionAmount = creditTransactionAmount/100000000
-                    if creditTransactionAmount < cust_adv_incurred:
-                        st.markdown(f"""
-                        <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
-                            <b>Red Flag:</b><br>
-                            Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) is less than Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                        <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
-                            <b>Green Flag:</b><br>
-                            Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) covers Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                render_styled_table(data["df2"], f"COP-MOF Current")
-
-                card_html = """
-                <style>
-                .card-container {
-                    display: flex;
-                    flex-wrap: wrap;
-                    justify-content: space-between;
-                    gap: 20px;
-                }
-                .card {
-                    flex: 0 0 32%;
-                    background-color: #ffffff;
-                    padding: 15px;
-                    border-radius: 12px;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-                    box-sizing: border-box;
-                    color: #333;
-                    font-family: Arial, sans-serif;
-                }
-                .card b {
-                    color: #000;
-                    font-size: 16px;
-                }
-                @media (max-width: 768px) {
-                    .card {
-                        flex: 0 0 100%;
-                    }
-                }
-                </style>
-                <div class="card-container">
-                """
-
-                
-                cards = []
-
-                
-                if bank_funds.size > 0:
-                    value = float(bank_funds[0]) / 100.0
-                    cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Obligation:</b><br>₹{value:.2f} Cr</div>")
-
-                
-                if mean_of_finance.size > 0 and total_a.size > 0:
-                    value = float(mean_of_finance[0]) - float(total_a[0])
-                    cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Balance:</b><br>₹{value:.2f} Cr</div>")
-
-                
-                if cust_adv_2.size > 0 and cust_adv_1.size > 0:
-                    value = float(cust_adv_2[0]) - float(cust_adv_1[0])
-                    cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Change in Customer Advance:</b><br>₹{value:.2f} Cr</div>")
-
-                
-                if promoter_funds_2.size > 0 and promoter_funds_1.size > 0:
-                    value = float(promoter_funds_2[0]) - float(promoter_funds_1[0])
-                    cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>Change in Promoter Funds:</b><br>₹{value:.2f} Cr</div>")
-
-                
-                if bank_funds_2.size > 0 and bank_funds_1.size > 0:
-                    value = float(bank_funds_2[0]) - float(bank_funds_1[0])
-                    cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Change in Bank Funds:</b><br>₹{value:.2f} Cr</div>")
-
-                
-                if total_a_2.size > 0 and total_a_1.size > 0:
-                    value = float(total_a_2[0]) - float(total_a_1[0])
-                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Change in Total (A):</b><br>₹{value:.2f} Cr</div>")
-
-                
-                card_html += "\n".join(cards) + "</div>"
-
-                
-                html(card_html, height=200)
-
-
-    else:
-        st.warning("Step 2 data missing.")
 
     step2_data = st.session_state.get("step_2_data")
 

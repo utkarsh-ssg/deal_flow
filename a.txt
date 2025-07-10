@@ -1,0 +1,30 @@
+•⁠  ⁠Track the sales as per MIS and compare the amounts mentioned against the 'Collection Account' and report for discrepancies
+	- Compare name of buyer, amounts paid, amounts to be received etc
+	- Flag all logical discrepancies
+	- Show the overall delta at a unit level and identify discrepancies like changes in agreement value, if amount to be received goes up etc
+•⁠  ⁠Monitor the withdrawals from the 30% account and from the Project account. 
+•⁠  ⁠Summarize the current MIS and compare with the latest data in the system
+	- Report against the last milestone that has been met as per the sanction letter
+	- Calculate values like security cover, receivable cover etc and report discrepancies
+•⁠  ⁠Track the Sweep & EMI from the 30% account
+	- Based on historical information, flag an alert when a bank statement is received, if a EMI payment might not be possible
+
+
+
+
+4 cards in row
+2 cards under a titile
+
+
+Sales sold unit(As per latest MIS) | Change
+New sales (received amount and percentage)
+overall sales
+
+
+Total emi received 
+sweep money
+security cover
+receivable cover
+
+
+Msp for units
