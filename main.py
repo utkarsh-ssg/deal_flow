@@ -287,7 +287,7 @@ def step_2():
                             st.write(styled_delta_df)
                             comparison_results[sheet]["delta_table"] = delta_df
                         else:
-                            st.markdown("### 🔁 Delta Table")
+                            st.markdown("### Delta Table")
                             st.info("No changes found apart from 'Sold/Unsold' status.")
                  
                     elif sheet == "COP-MOF" and sheet in xls2.sheet_names:
@@ -759,7 +759,7 @@ def step_4():
 
             step2 = st.session_state.get("step_2_data")
             if step2:
-                st.header("COP-MOF Data")
+                st.header("Latest Data")
                 for sheet, data in step2.items():
                     if isinstance(data, dict) and sheet == "COP-MOF":
                         def render_styled_table(df, title):
@@ -908,67 +908,162 @@ def step_4():
                     if isinstance(data, dict) and sheet == "MIS":
                         df2 = data['df2']
                         df1 = data['df1']
+
                         
-                        # Ensure required columns exist
-                        required_cols = {"Flat no", "Agreement value", "Amount Receivable", "Sold/Unsold"}
-                        if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
-                            st.warning("Required columns missing in MIS data.")
-                            return
 
-                        # Track NOC status
-                        ready_for_noc = []
-                        pending_for_noc = []
+                        if "Sold/Unsold" in df1.columns and "Sold/Unsold" in df2.columns:
+                            df1_map = df1.set_index("Flat no")
+                            df2_map = df2.set_index("Flat no")
 
-                        df1_map = df1.set_index("Flat no")
-                        df2_map = df2.set_index("Flat no")
+                            sold_prev = df1[df1["Sold/Unsold"].str.lower().str.strip() == "sold"]
+                            sold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "sold"]
 
-                        common_flats = set(df1_map.index).intersection(df2_map.index)
-                        delta_total = 0
+                            
 
-                        for flat_no in common_flats:
-                            prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
-                            curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+                            new_units_sold = set(sold_curr["Flat no"]) - set(sold_prev["Flat no"])
+                            df_new_sold = df2[df2["Flat no"].isin(new_units_sold)]
 
-                            if curr_status == "sold":
+                            def safe_float(val):
                                 try:
-                                    agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
-                                    amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
-                                    received2 = agreement_value2 - amount_receivable2
+                                    return float(val)
+                                except:
+                                    return 0.0
 
-                                    agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
-                                    amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
-                                    received1 = agreement_value1 - amount_receivable1
+                            unsold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "unsold"]
+                            total_unsold_saleable_area = unsold_curr["Sealable Area (in sq ft)"].apply(safe_float).sum()
+                            msi = 27500
+                            total_sold_units = len(sold_curr)
+                            total_agreement_all_sold = sold_curr["Agreement value"].apply(safe_float).sum()
+                            total_receivable_all_sold = sold_curr["Amount Receivable"].apply(safe_float).sum()
+                            total_received_all_sold = total_agreement_all_sold - total_receivable_all_sold
+                            pct_received_all_sold = (total_received_all_sold / total_agreement_all_sold * 100) if total_agreement_all_sold > 0 else 0.0
 
-                                    delta = received2 - received1
-                                    delta_total += delta
+                            
+                            num_new_sold = len(df_new_sold)
+                            total_agreement_new_sold = df_new_sold["Agreement value"].apply(safe_float).sum()
+                            total_receivable_new_sold = df_new_sold["Amount Receivable"].apply(safe_float).sum()
+                            total_received_new_sold = total_agreement_new_sold - total_receivable_new_sold
+                            pct_received_new_sold = (total_received_new_sold / total_agreement_new_sold * 100) if total_agreement_new_sold > 0 else 0.0
+                            loan_amount = 300000000
+                            x = 510000000
+                            interest = 3250000
+                            
+                            security_cover_prev = x/loan_amount
+                            security_cover_curr = x/(loan_amount-interest)
+                            overall_receivable = total_unsold_saleable_area * msi
+                            receivable_cover_prev = overall_receivable/loan_amount
+                            receivable_cover_curr = overall_receivable/(loan_amount-interest)
+                            
+                            card_html = """
+                            <style>
+                            .card-container {
+                                display: flex;
+                                flex-wrap: wrap;
+                                justify-content: space-between;
+                                gap: 20px;
+                            }
+                            .card {
+                                flex: 0 0 32%;
+                                background-color: #ffffff;
+                                padding: 15px;
+                                border-radius: 12px;
+                                box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                                box-sizing: border-box;
+                                color: #333;
+                                font-family: Arial, sans-serif;
+                            }
+                            .card b {
+                                color: #000;
+                                font-size: 16px;
+                            }
+                            @media (max-width: 768px) {
+                                .card {
+                                    flex: 0 0 100%;
+                                }
+                            }
+                            </style>
+                            <div class="card-container">
+                            """
+
+                            cards = []
+
+                            cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Total units sold:</b><br>{total_sold_units}</div>")
+                            cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Recently sold units:</b><br>{num_new_sold}</div>")
+                            cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Amount Received from recently sold units:</b><br>₹{total_received_new_sold:,.2f}</div>")
+                            cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>% Received from recently sold units:</b><br>{pct_received_new_sold:.2f}%</div>")
+                            cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Amount Received from all sold units:</b><br>₹{total_received_all_sold:,.2f}</div>")
+                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>% Received from All Sold Units:</b><br>{pct_received_all_sold:.2f}%</div>")
+                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Previous Security Cover:</b><br>{security_cover_prev:.2f}</div>")
+                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Security Cover:</b><br>{security_cover_curr:.2f}</div>")
+                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Previous Receivable Cover:</b><br>{receivable_cover_prev:.2f}</div>")
+                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Receivable Cover:</b><br>{receivable_cover_curr:.2f}</div>")
+                            
+
+                            card_html += "\n".join(cards) + "</div>"
+
+                            html(card_html, height=420)
+
+                        
+                        
+                        # required_cols = {"Flat no", "Agreement value", "Amount Receivable", "Sold/Unsold"}
+                        # if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
+                        #     st.warning("Required columns missing in MIS data.")
+                        #     return
+
+                        
+                        # ready_for_noc = []
+                        # pending_for_noc = []
+
+                        # df1_map = df1.set_index("Flat no")
+                        # df2_map = df2.set_index("Flat no")
+
+                        # common_flats = set(df1_map.index).intersection(df2_map.index)
+                        # delta_total = 0
+
+                        # for flat_no in common_flats:
+                        #     prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+                        #     curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+
+                        #     if curr_status == "sold":
+                        #         try:
+                        #             agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
+                        #             amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
+                        #             received2 = agreement_value2 - amount_receivable2
+
+                        #             agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
+                        #             amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
+                        #             received1 = agreement_value1 - amount_receivable1
+
+                        #             delta = received2 - received1
+                        #             delta_total += delta
 
                                     
 
-                                    if received2 > 0.15 * agreement_value2:
-                                        ready_for_noc.append(flat_no)
-                                    else:
-                                        pending_for_noc.append(flat_no)
+                        #             if received2 > 0.15 * agreement_value2:
+                        #                 ready_for_noc.append(flat_no)
+                        #             else:
+                        #                 pending_for_noc.append(flat_no)
 
-                                except Exception as e:
-                                    st.warning(f"Data error in Flat {flat_no}: {e}")
-                                    continue
+                        #         except Exception as e:
+                        #             st.warning(f"Data error in Flat {flat_no}: {e}")
+                        #             continue
 
                         
 
-                        st.markdown("NOC Status from MIS + Bank Statement")
+                        # st.markdown("NOC Status from MIS + Bank Statement")
                         
-                        if ready_for_noc:
-                            st.markdown("### ✅ Units which are Ready for NOC ")
-                            for item in ready_for_noc:
-                                st.markdown(f"- {item}")
+                        # if ready_for_noc:
+                        #     st.markdown("### ✅ Units which are Ready for NOC ")
+                        #     for item in ready_for_noc:
+                        #         st.markdown(f"- {item}")
 
-                        if pending_for_noc:
-                            st.markdown("### ❌ Units which are Pending for NOC")
-                            for item in pending_for_noc:
-                                st.markdown(f"- {item}")
+                        # if pending_for_noc:
+                        #     st.markdown("### ❌ Units which are Pending for NOC")
+                        #     for item in pending_for_noc:
+                        #         st.markdown(f"- {item}")
 
 
-                        required_in_bank = delta_total + 0.05 * delta_total - 0.01 * delta_total
+                        # required_in_bank = delta_total + 0.05 * delta_total - 0.01 * delta_total
 
                         # minimum account balance should be greater than equal to required_in_bank
 
