@@ -2,13 +2,11 @@ import streamlit as st
 import pandas as pd
 import PyPDF2
 import io
-import tempfile
 import time
 from dotenv import load_dotenv
 import json
 import re
 from streamlit.components.v1 import html
-import requests
 from utils.utils import *
 
 load_dotenv()
@@ -351,6 +349,7 @@ def step_2():
         
         st.session_state.step_2_data = comparison_results
         
+        
         col1, col2 = st.columns(2)
         with col1:
             st.button("Back", on_click=go_to_step, args=(1,))
@@ -605,235 +604,370 @@ def step_3():
     with col2:
         st.button("Next", on_click=go_to_step, args=(4,))
 
+
 def step_4():
     st.title("Bank Statements Summary")
-
     st.write('Upload the Bank Statements')
-
-    UPLOAD_URL = "https://cartuat.com/api/upload"
-    DOWNLOAD_URL = "https://cartuat.com/api/downloadFile"
-    AUTH_TOKEN = "API://QFEreQJLUvIWHKSLliicNPOC/MYh9B7dCo95Chz2rT2Sgf9ihi53EpD8LigFS/tw"
 
     uploaded_file = st.file_uploader("Upload Collection Bank statement", type="pdf")
     uploaded_file2 = st.file_uploader("Upload Corporate Bank statement", type="pdf")
     uploaded_file3 = st.file_uploader("Upload Project statement", type="pdf")
     creditTransactionAmount = 0
-    if uploaded_file is not None:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(uploaded_file.read())
-            tmp_file_path = tmp_file.name
+    if uploaded_file is not None and uploaded_file2 is not None:
+        
+        download_response = process_bank_statement(uploaded_file)
+        download_response2 = process_bank_statement(uploaded_file2)
+        
 
-        st.success("File saved temporarily. Uploading...")
-
-        metadata = {
-            "password": "",
-            "bank": "Other",
-            "name": ""
-        }
-
-        document_details = [{
-            "groupCompany": "",
-            "accountNumber": "",
-            "accountType": "",
-            "internal": False,
-            "odCcLimit": "",
-            "organizationName": ""
-        }]
-
-        files = {
-            "file": open(tmp_file_path, "rb"),
-            "metadata": (None, json.dumps(metadata), "application/json"),
-            "documentDetails": (None, json.dumps(document_details), "application/json"),
-        }
-
-        headers = {
-            "Accept": "application/json",
-            "auth-token": AUTH_TOKEN
-        }
-
-        upload_response = requests.post(UPLOAD_URL, files=files, headers=headers)
-
-
-        if upload_response.status_code == 200:
-            st.success("File uploaded successfully!")
-
+        if download_response.status_code == 200 and download_response2.status_code == 200:
+            result = download_response.json()
+            result2 = download_response2.json()
+            bajaj_housing_total = 0
             
-            try:
-                doc_id = upload_response.json().get("docId")
+            if "analysisData" in result['data'][0] and "transactions" in result2['data'][0]:
+                card_html = """
+                <style>
+                .card-container {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                    gap: 20px;
+                }
+                .card {
+                    flex: 0 0 32%;
+                    background-color: #ffffff;
+                    padding: 15px;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                    box-sizing: border-box;
+                    color: #333;
+                    font-family: Arial, sans-serif;
+                }
+                .card b {
+                    color: #000;
+                    font-size: 16px;
+                }
+                @media (max-width: 768px) {
+                    .card {
+                        flex: 0 0 100%;
+                    }
+                }
+                </style>
+                <div class="card-container">
+                """
+
+                
+                transactions = result2['data'][0]['transactions']
+
+                for transaction in transactions:
+                    if (transaction.get("type") == "Dr" and "BAJAJ HOUSING F" in transaction.get("narration", "").upper() and "Mar-2025" in transaction.get("monthYear","")):
+                        bajaj_housing_total += transaction.get("amount", 0.0)
+
+                cards = []
+                analysis_data = result['data'][0]['analysisData']
+                c = 0
+                for item in analysis_data:
+                    month = item.get("month", "")
+                    credit_amount = item.get("creditTransactionsAmount", 0.0)
+
+                    if c == 0:
+                        creditTransactionAmount = credit_amount
+                    credit_count = item.get("noOfCreditTransactions", 0)
+                    debit_amount = item.get("debitTransactionsAmount", 0)
+                    debit_count = item.get("noOfDebitTransactions", 0)
+                    net_balance = item.get("customAverageBalance", 0)
+                    emi_amount = item.get("totalEMIAmount", 0)
+                    
+
+                    cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Credit in {month}:</b><br>₹{credit_amount:.2f}</div>")
+                    
+                    cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>No. of Credit Transaction in {month}:</b><br>{int(credit_count)}</div>")
+                    
+                    cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Debit Transaction in {month}:</b><br>₹{debit_amount:.2f}</div>")
+
+                    cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>No. of Debit Transaction in {month}:</b><br>{int(debit_count)}</div>")
+
+                    cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Net Balance in {month}:</b><br>₹{net_balance:.2f}</div>")
+                    
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Total EMI amount in {month}:</b><br>₹{emi_amount:.2f}</div>")
+
+
+                card_html += "\n".join(cards) + "</div>"
+
+                html(card_html, height=400)
+                
+        else:
+            st.error(f"Download failed. Status code: {download_response.status_code}")
+            st.text(download_response.text)
+
                 
 
-                if doc_id:
-                    time.sleep(10)
-                    download_headers = {
-                        "Accept": "application/json",
-                        "auth-token": AUTH_TOKEN,
-                        "Content-Type": "text/plain"
+        step2 = st.session_state.get("step_2_data")
+        if step2:
+            st.header("Latest Data")
+            for sheet, data in step2.items():
+                if isinstance(data, dict) and sheet == "COP-MOF":
+                    def render_styled_table(df, title):
+                        st.subheader(title)
+                        styled_html = df.to_html(classes='custom-table', index=False)
+                        st.markdown(styled_html, unsafe_allow_html=True)
+
+                    
+                    st.markdown("""
+                        <style>
+                        .custom-table {
+                            border-collapse: collapse;
+                            width: 100%;
+                            font-family: Arial, sans-serif;
+                            border-radius: 8px;
+                            overflow: hidden;
+                        }
+                        .custom-table th, .custom-table td {
+                            border: 1px solid #ddd;
+                            padding: 10px;
+                            text-align: left;
+                            color: #333333;
+                            background-color: #FFFFFF;
+                        }
+                        .custom-table th {
+                            background-color: #E0E0E0;
+                            font-weight: bold;
+                        }
+                        .custom-table tr:nth-child(even) {
+                            background-color: #F5F5F5;
+                        }
+                        .custom-table tr:hover {
+                            background-color: #D3E3FC;
+                        }
+                        </style>
+                    """, unsafe_allow_html=True)
+
+                    
+                    df1 = data['df1']
+                    df2 = data['df2']
+                    bank_funds = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
+                    mean_of_finance = df2.loc[df2["PARTICULARS"].str.strip() == "MEANS OF FINANCE", "Incurred"].values
+                    total_a = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
+                    cust_adv_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
+                    cust_adv_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
+                    promoter_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
+                    promoter_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
+                    bank_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
+                    bank_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
+                    total_a_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
+                    total_a_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
+                    
+                    
+
+                    if uploaded_file and cust_adv_2.size > 0:
+                        cust_adv_incurred = float(cust_adv_2[0])
+                        creditTransactionAmount = creditTransactionAmount/100000000
+                        if creditTransactionAmount < cust_adv_incurred:
+                            st.markdown(f"""
+                            <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
+                                <b>Red Flag:</b><br>
+                                Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) is less than Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
+                                <b>Green Flag:</b><br>
+                                Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) covers Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    render_styled_table(data["df2"], f"COP-MOF Current")
+
+                    card_html = """
+                    <style>
+                    .card-container {
+                        display: flex;
+                        flex-wrap: wrap;
+                        justify-content: space-between;
+                        gap: 20px;
                     }
+                    .card {
+                        flex: 0 0 32%;
+                        background-color: #ffffff;
+                        padding: 15px;
+                        border-radius: 12px;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                        box-sizing: border-box;
+                        color: #333;
+                        font-family: Arial, sans-serif;
+                    }
+                    .card b {
+                        color: #000;
+                        font-size: 16px;
+                    }
+                    @media (max-width: 768px) {
+                        .card {
+                            flex: 0 0 100%;
+                        }
+                    }
+                    </style>
+                    <div class="card-container">
+                    """
 
-                    download_response = requests.post(
-                        DOWNLOAD_URL,
-                        headers=download_headers,
-                        data= doc_id
-                    )
+                    
+                    cards = []
 
-                    if download_response.status_code == 200:
-                        result = download_response.json()
+                    
+                    if bank_funds.size > 0:
+                        value = float(bank_funds[0]) / 100.0
+                        cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Obligation:</b><br>₹{value:.2f} Cr</div>")
+
+                    
+                    if mean_of_finance.size > 0 and total_a.size > 0:
+                        value = float(mean_of_finance[0]) - float(total_a[0])
+                        cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Balance:</b><br>₹{value:.2f} Cr</div>")
+
+                    
+                    if cust_adv_2.size > 0 and cust_adv_1.size > 0:
+                        value = float(cust_adv_2[0]) - float(cust_adv_1[0])
+                        cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Change in Customer Advance:</b><br>₹{value:.2f} Cr</div>")
+
+                    
+                    if promoter_funds_2.size > 0 and promoter_funds_1.size > 0:
+                        value = float(promoter_funds_2[0]) - float(promoter_funds_1[0])
+                        cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>Change in Promoter Funds:</b><br>₹{value:.2f} Cr</div>")
+
+                    
+                    if bank_funds_2.size > 0 and bank_funds_1.size > 0:
+                        value = float(bank_funds_2[0]) - float(bank_funds_1[0])
+                        cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Change in Bank Funds:</b><br>₹{value:.2f} Cr</div>")
+
+                    
+                    if total_a_2.size > 0 and total_a_1.size > 0:
+                        value = float(total_a_2[0]) - float(total_a_1[0])
+                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Change in Total (A):</b><br>₹{value:.2f} Cr</div>")
+
+                    
+                    card_html += "\n".join(cards) + "</div>"
+
+                    
+                    html(card_html, height=200)
+
+
+                if isinstance(data, dict) and sheet == "MIS":
+                    df2 = data['df2']
+                    df1 = data['df1']
+
+                    
+
+                    if "Sold/Unsold" in df1.columns and "Sold/Unsold" in df2.columns:
+
+                        df1_map = df1.set_index("Flat no")
+                        df2_map = df2.set_index("Flat no")
+
+                        common_flats = set(df1_map.index).intersection(df2_map.index)
+
+                        flat_bank_match_data = []
+                        bank_transactions = result['data'][0].get("transactions", [])
+
+                        total_delta_received = 0
+
+                        def is_match_found(expected_amt, name, transactions):
+                            name = name.lower()
+                            for txn in transactions:
+                                if txn.get("type") == "Cr" and txn.get("monthYear") == "Mar 2025":
+                                    txn_amt = txn.get("amount", 0)
+                                    txn_name = txn.get("name", "").lower()
+                                    if abs(txn_amt - expected_amt) <= 5000 and name in txn_name:
+                                        return True
+                            return False
+
+                        for flat_no in common_flats:
+                            prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+                            curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+
+                            if curr_status == "sold":
+                                try:
+                                    agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
+                                    amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
+                                    received2 = agreement_value2 - amount_receivable2
+
+                                    agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
+                                    amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
+                                    received1 = agreement_value1 - amount_receivable1
+
+                                    delta = received2 - received1
+
+                                    total_delta_received += round(delta,2)
+                                    expected_amt = delta * 1.04
+
+                                    customer_name = df2_map.at[flat_no, "Name of Customer"] if "Name of Customer" in df2_map.columns else ""
+                                    tower_no = df2_map.at[flat_no, "Tower No"] if "Tower No" in df2_map.columns else ""
+
+                                    match_found = is_match_found(expected_amt, customer_name, bank_transactions)
+
+                                    flat_bank_match_data.append({
+                                        "Flat No": flat_no,
+                                        "Tower No": tower_no,
+                                        "Customer Name": customer_name,
+                                        "Delta Received (₹)": round(delta, 2),
+                                        "Expected in Bank (₹)": round(expected_amt, 2),
+                                        "Appeared in Bank Statement": "✅ Yes" if match_found else "❌ No"
+                                    })
+
+                                except Exception as e:
+                                    st.warning(f"Error in flat {flat_no}: {e}")
+                                    continue
+
                         
-                        if "analysisData" in result['data'][0]:
-                            card_html = """
-                            <style>
-                            .card-container {
-                                display: flex;
-                                flex-wrap: wrap;
-                                justify-content: space-between;
-                                gap: 20px;
-                            }
-                            .card {
-                                flex: 0 0 32%;
-                                background-color: #ffffff;
-                                padding: 15px;
-                                border-radius: 12px;
-                                box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-                                box-sizing: border-box;
-                                color: #333;
-                                font-family: Arial, sans-serif;
-                            }
-                            .card b {
-                                color: #000;
-                                font-size: 16px;
-                            }
-                            @media (max-width: 768px) {
-                                .card {
-                                    flex: 0 0 100%;
-                                }
-                            }
-                            </style>
-                            <div class="card-container">
-                            """
-
-                            
-                            cards = []
-                            analysis_data = result['data'][0]['analysisData']
-                            c = 0
-                            for item in analysis_data:
-                                month = item.get("month", "")
-                                credit_amount = item.get("creditTransactionsAmount", 0.0)
-
-                                if c == 0:
-                                    creditTransactionAmount = credit_amount
-                                credit_count = item.get("noOfCreditTransactions", 0)
-                                debit_amount = item.get("debitTransactionsAmount", 0)
-                                debit_count = item.get("noOfDebitTransactions", 0)
-                                net_balance = item.get("customAverageBalance", 0)
-                                emi_amount = item.get("totalEMIAmount", 0)
-                                
-
-                                cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Credit in {month}:</b><br>₹{credit_amount:.2f}</div>")
-                                
-                                cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>No. of Credit Transaction in {month}:</b><br>{int(credit_count)}</div>")
-                                
-                                cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Debit Transaction in {month}:</b><br>₹{debit_amount:.2f}</div>")
-
-                                cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>No. of Debit Transaction in {month}:</b><br>{int(debit_count)}</div>")
-
-                                cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Net Balance in {month}:</b><br>₹{net_balance:.2f}</div>")
-                                
-                                cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Total EMI amount in {month}:</b><br>₹{emi_amount:.2f}</div>")
+                        if flat_bank_match_data:
+                            st.subheader("Matching Received Amount with Bank Statement")
+                            result_df = pd.DataFrame(flat_bank_match_data)
+                            st.dataframe(result_df, use_container_width=True)
+                        else:
+                            st.info("No matching sold flats found for delta-bank check.")
 
 
-                            card_html += "\n".join(cards) + "</div>"
+                        df1_map = df1.set_index("Flat no")
+                        df2_map = df2.set_index("Flat no")
 
-                            html(card_html, height=400)
-
-
-                    else:
-                        st.error(f"Download failed. Status code: {download_response.status_code}")
-                        st.text(download_response.text)
-
-                else:
-                    st.error("Document ID not found in upload response.")
-
-            except Exception as e:
-                st.error("Failed to parse upload response.")
-                st.text(str(e))
-
-            step2 = st.session_state.get("step_2_data")
-            if step2:
-                st.header("Latest Data")
-                for sheet, data in step2.items():
-                    if isinstance(data, dict) and sheet == "COP-MOF":
-                        def render_styled_table(df, title):
-                            st.subheader(title)
-                            styled_html = df.to_html(classes='custom-table', index=False)
-                            st.markdown(styled_html, unsafe_allow_html=True)
+                        sold_prev = df1[df1["Sold/Unsold"].str.lower().str.strip() == "sold"]
+                        sold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "sold"]
 
                         
-                        st.markdown("""
-                            <style>
-                            .custom-table {
-                                border-collapse: collapse;
-                                width: 100%;
-                                font-family: Arial, sans-serif;
-                                border-radius: 8px;
-                                overflow: hidden;
-                            }
-                            .custom-table th, .custom-table td {
-                                border: 1px solid #ddd;
-                                padding: 10px;
-                                text-align: left;
-                                color: #333333;
-                                background-color: #FFFFFF;
-                            }
-                            .custom-table th {
-                                background-color: #E0E0E0;
-                                font-weight: bold;
-                            }
-                            .custom-table tr:nth-child(even) {
-                                background-color: #F5F5F5;
-                            }
-                            .custom-table tr:hover {
-                                background-color: #D3E3FC;
-                            }
-                            </style>
-                        """, unsafe_allow_html=True)
+
+                        new_units_sold = set(sold_curr["Flat no"]) - set(sold_prev["Flat no"])
+                        df_new_sold = df2[df2["Flat no"].isin(new_units_sold)]
+
+                        def safe_float(val):
+                            try:
+                                return float(val)
+                            except:
+                                return 0.0
+
+                        unsold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "unsold"]
+                        total_unsold_saleable_area = unsold_curr["Sealable Area (in sq ft)"].apply(safe_float).sum()
+                        msi = 27500
+                        total_sold_units = len(sold_curr)
+                        total_agreement_all_sold = sold_curr["Agreement value"].apply(safe_float).sum()
+                        total_receivable_all_sold = sold_curr["Amount Receivable"].apply(safe_float).sum()
+                        total_received_all_sold = total_agreement_all_sold - total_receivable_all_sold
+                        pct_received_all_sold = (total_received_all_sold / total_agreement_all_sold * 100) if total_agreement_all_sold > 0 else 0.0
 
                         
-                        df1 = data['df1']
-                        df2 = data['df2']
-                        bank_funds = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                        mean_of_finance = df2.loc[df2["PARTICULARS"].str.strip() == "MEANS OF FINANCE", "Incurred"].values
-                        total_a = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
-                        cust_adv_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
-                        cust_adv_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
-                        promoter_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
-                        promoter_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
-                        bank_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                        bank_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                        total_a_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
-                        total_a_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
+                        num_new_sold = len(df_new_sold)
+                        total_agreement_new_sold = df_new_sold["Agreement value"].apply(safe_float).sum()
+                        total_receivable_new_sold = df_new_sold["Amount Receivable"].apply(safe_float).sum()
+                        total_received_new_sold = total_agreement_new_sold - total_receivable_new_sold
+                        pct_received_new_sold = (total_received_new_sold / total_agreement_new_sold * 100) if total_agreement_new_sold > 0 else 0.0
+                        loan_amount = 300000000
+                        x = 510000000
+                        interest = 3250000
                         
-                        
+                        security_cover_prev = x/loan_amount
+                        security_cover_curr = x/(loan_amount-interest)
+                        overall_receivable = total_unsold_saleable_area * msi
+                        receivable_cover_prev = overall_receivable/loan_amount
+                        receivable_cover_curr = overall_receivable/(loan_amount-interest)
 
-                        if uploaded_file and cust_adv_2.size > 0:
-                            cust_adv_incurred = float(cust_adv_2[0])
-                            creditTransactionAmount = creditTransactionAmount/100000000
-                            if creditTransactionAmount < cust_adv_incurred:
-                                st.markdown(f"""
-                                <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
-                                    <b>Red Flag:</b><br>
-                                    Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) is less than Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                st.markdown(f"""
-                                <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
-                                    <b>Green Flag:</b><br>
-                                    Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) covers Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
-                                </div>
-                                """, unsafe_allow_html=True)
+                        expected_swept_amount = 0.15 * total_delta_received
                         
-                        render_styled_table(data["df2"], f"COP-MOF Current")
-
                         card_html = """
                         <style>
                         .card-container {
@@ -865,217 +999,132 @@ def step_4():
                         <div class="card-container">
                         """
 
-                        
                         cards = []
 
+                        cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Total units sold:</b><br>{total_sold_units}</div>")
+                        cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Recently sold units:</b><br>{num_new_sold}</div>")
+                        cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Amount Received from recently sold units:</b><br>₹{total_received_new_sold:,.2f}</div>")
+                        cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>% Received from recently sold units:</b><br>{pct_received_new_sold:.2f}%</div>")
+                        cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Amount Received from all sold units:</b><br>₹{total_received_all_sold:,.2f}</div>")
+                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>% Received from All Sold Units:</b><br>{pct_received_all_sold:.2f}%</div>")
+                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Previous Security Cover:</b><br>{security_cover_prev:.2f}</div>")
+                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Security Cover:</b><br>{security_cover_curr:.2f}</div>")
+                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Previous Receivable Cover:</b><br>{receivable_cover_prev:.2f}</div>")
+                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Receivable Cover:</b><br>{receivable_cover_curr:.2f}</div>")
+                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Expected Amount to be debited to Bajaj Housing Fincance:</b><br>Rs. {expected_swept_amount:.2f}</div>")
+                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Actual Amount Debited this month to Bajaj Housing Finance from 30% account:</b><br>Rs. {bajaj_housing_total:.2f}</div>")
                         
-                        if bank_funds.size > 0:
-                            value = float(bank_funds[0]) / 100.0
-                            cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Obligation:</b><br>₹{value:.2f} Cr</div>")
 
-                        
-                        if mean_of_finance.size > 0 and total_a.size > 0:
-                            value = float(mean_of_finance[0]) - float(total_a[0])
-                            cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Balance:</b><br>₹{value:.2f} Cr</div>")
-
-                        
-                        if cust_adv_2.size > 0 and cust_adv_1.size > 0:
-                            value = float(cust_adv_2[0]) - float(cust_adv_1[0])
-                            cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Change in Customer Advance:</b><br>₹{value:.2f} Cr</div>")
-
-                        
-                        if promoter_funds_2.size > 0 and promoter_funds_1.size > 0:
-                            value = float(promoter_funds_2[0]) - float(promoter_funds_1[0])
-                            cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>Change in Promoter Funds:</b><br>₹{value:.2f} Cr</div>")
-
-                        
-                        if bank_funds_2.size > 0 and bank_funds_1.size > 0:
-                            value = float(bank_funds_2[0]) - float(bank_funds_1[0])
-                            cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Change in Bank Funds:</b><br>₹{value:.2f} Cr</div>")
-
-                        
-                        if total_a_2.size > 0 and total_a_1.size > 0:
-                            value = float(total_a_2[0]) - float(total_a_1[0])
-                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Change in Total (A):</b><br>₹{value:.2f} Cr</div>")
-
-                        
                         card_html += "\n".join(cards) + "</div>"
 
+                        html(card_html, height=420)
+
+                        if bajaj_housing_total < expected_swept_amount:
+                            st.markdown(f"""
+                                <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
+                                    <b>Red Flag:</b><br>
+                                    Swept Amount (₹{bajaj_housing_total:.2f} Cr) is less than Expected Amount Swept (₹{expected_swept_amount:.2f} Cr)
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
+                                <b>Green Flag:</b><br>
+                                Swept Amount (₹{bajaj_housing_total:.2f} Cr) covers Expected Amount Swept (₹{expected_swept_amount:.2f} Cr)
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        average_expected = 1000000
+                        if bajaj_housing_total < average_expected:
+                            st.markdown(f"""
+                                <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
+                                    <b>Red Flag:</b><br>
+                                    Swept Amount (₹{expected_swept_amount:.2f} Cr) is less than Average Historical Swept (₹{average_expected:.2f} Cr)
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
+                                <b>Green Flag:</b><br>
+                                Swept Amount (₹{expected_swept_amount:.2f} Cr) covers Average Historical Swept (₹{average_expected:.2f} Cr)
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                    
                         
-                        html(card_html, height=200)
-
-
-                    if isinstance(data, dict) and sheet == "MIS":
-                        df2 = data['df2']
-                        df1 = data['df1']
-
-                        
-
-                        if "Sold/Unsold" in df1.columns and "Sold/Unsold" in df2.columns:
-                            df1_map = df1.set_index("Flat no")
-                            df2_map = df2.set_index("Flat no")
-
-                            sold_prev = df1[df1["Sold/Unsold"].str.lower().str.strip() == "sold"]
-                            sold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "sold"]
-
-                            
-
-                            new_units_sold = set(sold_curr["Flat no"]) - set(sold_prev["Flat no"])
-                            df_new_sold = df2[df2["Flat no"].isin(new_units_sold)]
-
-                            def safe_float(val):
-                                try:
-                                    return float(val)
-                                except:
-                                    return 0.0
-
-                            unsold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "unsold"]
-                            total_unsold_saleable_area = unsold_curr["Sealable Area (in sq ft)"].apply(safe_float).sum()
-                            msi = 27500
-                            total_sold_units = len(sold_curr)
-                            total_agreement_all_sold = sold_curr["Agreement value"].apply(safe_float).sum()
-                            total_receivable_all_sold = sold_curr["Amount Receivable"].apply(safe_float).sum()
-                            total_received_all_sold = total_agreement_all_sold - total_receivable_all_sold
-                            pct_received_all_sold = (total_received_all_sold / total_agreement_all_sold * 100) if total_agreement_all_sold > 0 else 0.0
-
-                            
-                            num_new_sold = len(df_new_sold)
-                            total_agreement_new_sold = df_new_sold["Agreement value"].apply(safe_float).sum()
-                            total_receivable_new_sold = df_new_sold["Amount Receivable"].apply(safe_float).sum()
-                            total_received_new_sold = total_agreement_new_sold - total_receivable_new_sold
-                            pct_received_new_sold = (total_received_new_sold / total_agreement_new_sold * 100) if total_agreement_new_sold > 0 else 0.0
-                            loan_amount = 300000000
-                            x = 510000000
-                            interest = 3250000
-                            
-                            security_cover_prev = x/loan_amount
-                            security_cover_curr = x/(loan_amount-interest)
-                            overall_receivable = total_unsold_saleable_area * msi
-                            receivable_cover_prev = overall_receivable/loan_amount
-                            receivable_cover_curr = overall_receivable/(loan_amount-interest)
-                            
-                            card_html = """
-                            <style>
-                            .card-container {
-                                display: flex;
-                                flex-wrap: wrap;
-                                justify-content: space-between;
-                                gap: 20px;
-                            }
-                            .card {
-                                flex: 0 0 32%;
-                                background-color: #ffffff;
-                                padding: 15px;
-                                border-radius: 12px;
-                                box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-                                box-sizing: border-box;
-                                color: #333;
-                                font-family: Arial, sans-serif;
-                            }
-                            .card b {
-                                color: #000;
-                                font-size: 16px;
-                            }
-                            @media (max-width: 768px) {
-                                .card {
-                                    flex: 0 0 100%;
-                                }
-                            }
-                            </style>
-                            <div class="card-container">
-                            """
-
-                            cards = []
-
-                            cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Total units sold:</b><br>{total_sold_units}</div>")
-                            cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Recently sold units:</b><br>{num_new_sold}</div>")
-                            cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Amount Received from recently sold units:</b><br>₹{total_received_new_sold:,.2f}</div>")
-                            cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>% Received from recently sold units:</b><br>{pct_received_new_sold:.2f}%</div>")
-                            cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Amount Received from all sold units:</b><br>₹{total_received_all_sold:,.2f}</div>")
-                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>% Received from All Sold Units:</b><br>{pct_received_all_sold:.2f}%</div>")
-                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Previous Security Cover:</b><br>{security_cover_prev:.2f}</div>")
-                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Security Cover:</b><br>{security_cover_curr:.2f}</div>")
-                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Previous Receivable Cover:</b><br>{receivable_cover_prev:.2f}</div>")
-                            cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Receivable Cover:</b><br>{receivable_cover_curr:.2f}</div>")
-                            
-
-                            card_html += "\n".join(cards) + "</div>"
-
-                            html(card_html, height=420)
-
-                        
-                        
-                        # required_cols = {"Flat no", "Agreement value", "Amount Receivable", "Sold/Unsold"}
-                        # if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
-                        #     st.warning("Required columns missing in MIS data.")
-                        #     return
-
-                        
-                        # ready_for_noc = []
-                        # pending_for_noc = []
-
-                        # df1_map = df1.set_index("Flat no")
-                        # df2_map = df2.set_index("Flat no")
-
-                        # common_flats = set(df1_map.index).intersection(df2_map.index)
-                        # delta_total = 0
-
-                        # for flat_no in common_flats:
-                        #     prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
-                        #     curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
-
-                        #     if curr_status == "sold":
-                        #         try:
-                        #             agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
-                        #             amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
-                        #             received2 = agreement_value2 - amount_receivable2
-
-                        #             agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
-                        #             amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
-                        #             received1 = agreement_value1 - amount_receivable1
-
-                        #             delta = received2 - received1
-                        #             delta_total += delta
-
-                                    
-
-                        #             if received2 > 0.15 * agreement_value2:
-                        #                 ready_for_noc.append(flat_no)
-                        #             else:
-                        #                 pending_for_noc.append(flat_no)
-
-                        #         except Exception as e:
-                        #             st.warning(f"Data error in Flat {flat_no}: {e}")
-                        #             continue
 
                         
 
-                        # st.markdown("NOC Status from MIS + Bank Statement")
-                        
-                        # if ready_for_noc:
-                        #     st.markdown("### ✅ Units which are Ready for NOC ")
-                        #     for item in ready_for_noc:
-                        #         st.markdown(f"- {item}")
+                    
+                    # required_cols = {"Flat no", "Agreement value", "Amount Receivable", "Sold/Unsold"}
+                    # if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
+                    #     st.warning("Required columns missing in MIS data.")
+                    #     return
 
-                        # if pending_for_noc:
-                        #     st.markdown("### ❌ Units which are Pending for NOC")
-                        #     for item in pending_for_noc:
-                        #         st.markdown(f"- {item}")
+                    
+                    # ready_for_noc = []
+                    # pending_for_noc = []
+
+                    # df1_map = df1.set_index("Flat no")
+                    # df2_map = df2.set_index("Flat no")
+
+                    # common_flats = set(df1_map.index).intersection(df2_map.index)
+                    # delta_total = 0
+
+                    # for flat_no in common_flats:
+                    #     prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+                    #     curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+
+                    #     if curr_status == "sold":
+                    #         try:
+                    #             agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
+                    #             amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
+                    #             received2 = agreement_value2 - amount_receivable2
+
+                    #             agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
+                    #             amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
+                    #             received1 = agreement_value1 - amount_receivable1
+
+                    #             delta = received2 - received1
+                    #             delta_total += delta
+
+                                
+
+                    #             if received2 > 0.15 * agreement_value2:
+                    #                 ready_for_noc.append(flat_no)
+                    #             else:
+                    #                 pending_for_noc.append(flat_no)
+
+                    #         except Exception as e:
+                    #             st.warning(f"Data error in Flat {flat_no}: {e}")
+                    #             continue
+
+                    
+
+                    # st.markdown("NOC Status from MIS + Bank Statement")
+                    
+                    # if ready_for_noc:
+                    #     st.markdown("### ✅ Units which are Ready for NOC ")
+                    #     for item in ready_for_noc:
+                    #         st.markdown(f"- {item}")
+
+                    # if pending_for_noc:
+                    #     st.markdown("### ❌ Units which are Pending for NOC")
+                    #     for item in pending_for_noc:
+                    #         st.markdown(f"- {item}")
 
 
-                        # required_in_bank = delta_total + 0.05 * delta_total - 0.01 * delta_total
+                    # required_in_bank = delta_total + 0.05 * delta_total - 0.01 * delta_total
 
-                        # minimum account balance should be greater than equal to required_in_bank
-
-
+                    # minimum account balance should be greater than equal to required_in_bank
 
 
-            else:
-                st.warning("Step 2 data missing.")
+                
 
         else:
-            st.error(f"Upload failed. Status code: {upload_response.status_code}")
-            st.text(upload_response.text)
+            st.warning("Step 2 data missing.")
+
+        
 
 
     step2_data = st.session_state.get("step_2_data")

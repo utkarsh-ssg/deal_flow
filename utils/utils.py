@@ -13,6 +13,10 @@ import hashlib
 import re
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+import requests
+import tempfile
+import time
+
 from dotenv import load_dotenv
 
 CACHE_DIR = "pdf_cache"
@@ -550,3 +554,77 @@ def calculate_pending_tenure(lease_end):
     delta = relativedelta(lease_end, today)
     total_months = delta.years * 12 + delta.months
     return total_months
+
+
+
+def process_bank_statement(uploaded_file):
+    UPLOAD_URL = "https://cartuat.com/api/upload"
+    DOWNLOAD_URL = "https://cartuat.com/api/downloadFile"
+    AUTH_TOKEN = "API://QFEreQJLUvIWHKSLliicNPOC/MYh9B7dCo95Chz2rT2Sgf9ihi53EpD8LigFS/tw"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        tmp_file_path = tmp_file.name
+
+    st.success("File saved temporarily. Uploading...")
+
+    metadata = {
+        "password": "",
+        "bank": "Other",
+        "name": ""
+    }
+
+    document_details = [{
+        "groupCompany": "",
+        "accountNumber": "",
+        "accountType": "",
+        "internal": False,
+        "odCcLimit": "",
+        "organizationName": ""
+    }]
+
+    files = {
+        "file": open(tmp_file_path, "rb"),
+        "metadata": (None, json.dumps(metadata), "application/json"),
+        "documentDetails": (None, json.dumps(document_details), "application/json"),
+    }
+
+    headers = {
+        "Accept": "application/json",
+        "auth-token": AUTH_TOKEN
+    }
+
+    upload_response = requests.post(UPLOAD_URL, files=files, headers=headers)
+
+    if upload_response.status_code == 200:
+        st.success("File uploaded successfully!")
+
+        
+        try:
+            doc_id = upload_response.json().get("docId")
+            
+
+            if doc_id:
+                time.sleep(10)
+                download_headers = {
+                    "Accept": "application/json",
+                    "auth-token": AUTH_TOKEN,
+                    "Content-Type": "text/plain"
+                }
+
+                download_response = requests.post(
+                    DOWNLOAD_URL,
+                    headers=download_headers,
+                    data= doc_id
+                )
+
+            else:
+                st.error("Document ID not found in upload response.")
+
+        except Exception as e:
+            st.error("Failed to parse upload response.")
+            st.text(str(e))
+    else:
+        st.error(f"Upload failed. Status code: {upload_response.status_code}")
+        st.text(upload_response.text)
+
+    return download_response
