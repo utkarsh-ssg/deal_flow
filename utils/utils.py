@@ -628,3 +628,10 @@ def process_bank_statement(uploaded_file):
         st.text(upload_response.text)
 
     return download_response
+
+
+def safe_float(val):
+    try:
+        return float(val)
+    except:
+        return 0.0

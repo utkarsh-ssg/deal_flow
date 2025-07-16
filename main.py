@@ -8,11 +8,13 @@ import json
 import re
 from streamlit.components.v1 import html
 from utils.utils import *
+import httpx
+import asyncio
 
 load_dotenv()
 
 
-st.set_page_config(page_title="Dashboard", layout="wide")
+st.set_page_config(page_title="Asset Management", layout="wide")
 
 def load_css(file_name):
     with open(file_name) as f:
@@ -34,7 +36,7 @@ if 'file_hash' not in st.session_state:
 
 
 def step_1():
-    st.title('Dashboard')
+    st.title('Asset Management')
     st.write('Upload the Sanction Letter to extract relevant milestones and conditions.')
 
     uploaded_file = st.file_uploader("Upload sanction letter", type="pdf")
@@ -265,14 +267,12 @@ def step_2():
                                     for diff in diff_mask
                                 ])
                                 delta_styles.append(row_style)
-
                         if delta_df_raw:
                             delta_df = pd.DataFrame(delta_df_raw)
                             delta_df.insert(0, id_column, delta_df.index)
                             delta_df.reset_index(drop=True, inplace=True)
-
-                            st.markdown("### Delta Table")
                             
+                            st.markdown("### Monthly Changes")
                             
                             def apply_delta_styles(row):
                                 row_idx = row.name
@@ -281,11 +281,92 @@ def step_2():
                                 else:
                                     return [''] * len(row)
                             
-                            styled_delta_df = delta_df.style.apply(apply_delta_styles, axis=1)
-                            st.write(styled_delta_df)
+                            
+                            columns_with_changes = []
+                            data_columns = [col for col in delta_df.columns if col != id_column]
+                            
+                            for col_idx, col in enumerate(data_columns):
+                                
+                                col_has_changes = False
+                                for row_idx in range(len(delta_df)):
+                                    if row_idx < len(delta_styles):
+                                        
+                                        style_idx = col_idx + 1
+                                        if style_idx < len(delta_styles[row_idx]) and delta_styles[row_idx][style_idx] != '':
+                                            col_has_changes = True
+                                            break
+                                
+                                if col_has_changes:
+                                    columns_with_changes.append(col)
+                            
+                            
+                            tab_names = ["All"] + columns_with_changes
+                            
+                            
+                            tabs = st.tabs(tab_names)
+                            
+                            
+                            with tabs[0]:
+                                styled_delta_df = delta_df.style.apply(apply_delta_styles, axis=1)
+                                st.write(styled_delta_df)
+                            
+                            
+                            for i, col_name in enumerate(columns_with_changes, 1):
+                                with tabs[i]:
+                                    
+                                    filtered_rows = []
+                                    col_idx = data_columns.index(col_name)
+                                    
+                                    for row_idx in range(len(delta_df)):
+                                        if row_idx < len(delta_styles):
+                                            
+                                            style_idx = col_idx + 1
+                                            if style_idx < len(delta_styles[row_idx]) and delta_styles[row_idx][style_idx] != '':
+                                                filtered_rows.append(row_idx)
+                                    
+                                    if filtered_rows:
+                                        
+                                        filtered_df = delta_df.iloc[filtered_rows].copy()
+                                        
+                                        filtered_df.reset_index(drop=True, inplace=True)
+                                        
+                                        
+                                        def apply_filtered_styles(row):
+                                            
+                                            row_position = row.name
+                                            if row_position < len(filtered_rows):
+                                                original_idx = filtered_rows[row_position]
+                                                if original_idx < len(delta_styles):
+                                                    return delta_styles[original_idx]
+                                            return [''] * len(row)
+                                        
+                                        styled_filtered_df = filtered_df.style.apply(apply_filtered_styles, axis=1)
+                                        st.write(styled_filtered_df)
+                                    else:
+                                        st.info(f"No changes detected in column '{col_name}'")
+                            
+                            
                             comparison_results[sheet]["delta_table"] = delta_df
+                            
+                            
+                            comparison_results[sheet]["delta_by_column"] = {}
+                            for col_name in columns_with_changes:
+                                col_idx = data_columns.index(col_name)
+                                filtered_rows = []
+                                
+                                for row_idx in range(len(delta_df)):
+                                    if row_idx < len(delta_styles):
+                                        style_idx = col_idx + 1
+                                        if style_idx < len(delta_styles[row_idx]) and delta_styles[row_idx][style_idx] != '':
+                                            filtered_rows.append(row_idx)
+                                
+                                if filtered_rows:
+                                    filtered_data = delta_df.iloc[filtered_rows].copy()
+                                    filtered_data.reset_index(drop=True, inplace=True)
+                                    comparison_results[sheet]["delta_by_column"][col_name] = filtered_data
+
                         else:
-                            st.markdown("### Delta Table")
+                            st.markdown("### Monthly Changes")
                             st.info("No changes found apart from 'Sold/Unsold' status.")
                  
                     elif sheet == "COP-MOF" and sheet in xls2.sheet_names:
@@ -471,100 +552,176 @@ def step_3():
 
                 if "step_2_data" in st.session_state:
                     step2_data = st.session_state["step_2_data"]
-
-                    sales_df = None
-                    for sheet_name, sheet_data in step2_data.items():
-                        if isinstance(sheet_data, dict) and "df2" in sheet_data:
-                            df = sheet_data["df2"]
-                            required_cols = [
-                                "Flat no", "Tower No", "Sold/Unsold"
-                            ]
-                            if all(col in df.columns for col in required_cols):
-                                sales_df = df
-                                break
-
-                    if sales_df is not None:
-                        st.markdown("<h3 style='color:#003366;'>Sales Information</h3>", unsafe_allow_html=True)
-
-                        recently_unsold_flats_by_tower = {}
-                        recently_sold_flats_by_tower = {}
-                        unique_towers = sales_df["Tower No"].dropna().unique()
-
-                        total_recently_sold = 0
-                        total_recently_unsold = 0
-
-                        for tower in unique_towers:
-                            st.markdown(f"<h4 style='color:#2C3E50; margin-bottom: 0;'>Tower: {tower}</h4>", unsafe_allow_html=True)
-
-                            with st.expander("", expanded=True):
-                                st.markdown("""
-                                    <style>
-                                        .streamlit-expanderHeader {
-                                            color: #2C3E50;
-                                            font-weight: bold;
-                                            font-size: 18px;
-                                        }
-                                        .streamlit-expander .streamlit-expanderContent {
-                                            color: #333333;
-                                        }
-                                    </style>
-                                """, unsafe_allow_html=True)
-
-                                recently_unsold_flats = sales_df[
-                                    (sales_df["Tower No"] == tower) &
-                                    (sales_df["Sold/Unsold"].str.lower() == "sold")
-                                ]["Flat no"].dropna().unique()
-                                st.write(f"Select Flats whose Sales got cancelled post latest MIS in Tower {tower}")
-                                selected_recently_unsold_flats = st.multiselect(
-                                    "",
-                                    recently_unsold_flats,
-                                    key=f"recently_unsold_flats_{tower}"
+                    
+                    if 'MIS' in step2_data and 'delta_by_column' in step2_data['MIS'] and 'Sold/Unsold' in step2_data['MIS']['delta_by_column']:
+                        df = step2_data['MIS']['delta_by_column']['Sold/Unsold']
+                        
+                        
+                        sold_units = df[df['Sold/Unsold'] == 'Sold'].copy()
+                        
+                        if not sold_units.empty:
+                            st.subheader("Request NOC for Sold Units")
+                            st.write("Select the units for which you want to request NOC:")
+                            
+                            unit_options = []
+                            unit_mapping = {}
+                            
+                            for idx, row in sold_units.iterrows():
+                                tower = row['Tower No']
+                                flat_no = row['Flat no']
+                                display_text = f"Tower {tower} - Flat {flat_no}"
+                                unit_options.append(display_text)
+                                unit_mapping[display_text] = {
+                                    'sl_no': row['Sl No.'],
+                                    'flat_no': flat_no,
+                                    'tower_no': tower,
+                                    'sold_status': row['Sold/Unsold'],
+                                    'agreement_value': row['Agreement value'],
+                                    'amount_received': row['Amount Received as on 28-02-2025'],
+                                    'amount_receivable': row['Amount Receivable'],
+                                    'saleable_area': row['Sealable Area (in sq ft)']
+                                }
+                            
+                            
+                            selected_units = st.multiselect(
+                                "Select units for NOC request:",
+                                options=unit_options,
+                                placeholder="Choose units...",
+                                help="You can select multiple units"
+                            )
+                            
+                            
+                            if selected_units:
+                                st.subheader("Selected Units Details")
+                                
+                                selected_data = []
+                                for unit in selected_units:
+                                    unit_data = unit_mapping[unit]
+                                    selected_data.append(unit_data)
+                                
+                                
+                                selected_df = pd.DataFrame(selected_data)
+                                
+                                
+                                st.dataframe(
+                                    selected_df,
+                                    use_container_width=True,
+                                    hide_index=True
                                 )
+                                
+                                
+                                if st.button("Confirm NOC Request", type="primary"):
+                                    if "step_3_data" not in st.session_state or st.session_state["step_3_data"] is None:
+                                        st.session_state["step_3_data"] = {}
+                                    
+                                    st.session_state["step_3_data"]["noc_data"] = {
+                                        "selected_units": selected_data
+                                    }
+                                    
+                                    st.success(f"✅ NOC request submitted for {len(selected_data)} units!")
+                                    
+                                    
+                                    
+                            
+                            
+                        
+                        else:
+                            st.warning("⚠️ No sold units found in the data.")
+                
 
-                                recently_sold_flats = sales_df[
-                                    (sales_df["Tower No"] == tower) &
-                                    (sales_df["Sold/Unsold"].str.lower() == "unsold")
-                                ]["Flat no"].dropna().unique()
-                                st.write(f"Select Unsold Flats which were Sold post latest MIS in Tower {tower}")
+                    # sales_df = None
+                    # for sheet_name, sheet_data in step2_data.items():
+                    #     if isinstance(sheet_data, dict) and "df2" in sheet_data:
+                    #         df = sheet_data["df2"]
+                    #         required_cols = [
+                    #             "Flat no", "Tower No", "Sold/Unsold"
+                    #         ]
+                    #         if all(col in df.columns for col in required_cols):
+                    #             sales_df = df
+                    #             break
 
-                                selected_recently_sold_flats = st.multiselect(
-                                    "",
-                                    recently_sold_flats,
-                                    key=f"unsold_flats_{tower}"
-                                )
+                    # if sales_df is not None:
+                    #     st.markdown("<h3 style='color:#003366;'>Sales Information</h3>", unsafe_allow_html=True)
 
-                                combined_selected = list(set(selected_recently_unsold_flats) | set(selected_recently_sold_flats))
-                                recently_unsold_flats_by_tower[tower] = selected_recently_unsold_flats
-                                recently_sold_flats_by_tower[tower] = selected_recently_sold_flats
+                    #     recently_unsold_flats_by_tower = {}
+                    #     recently_sold_flats_by_tower = {}
+                    #     unique_towers = sales_df["Tower No"].dropna().unique()
 
-                                selected_df = sales_df[
-                                    (sales_df["Tower No"] == tower) &
-                                    (sales_df["Flat no"].isin(combined_selected))
-                                ]
+                    #     total_recently_sold = 0
+                    #     total_recently_unsold = 0
 
-                                recently_unsold_count = selected_df[selected_df["Sold/Unsold"].str.lower() == "sold"].shape[0]
-                                recently_sold_count = selected_df[selected_df["Sold/Unsold"].str.lower() == "unsold"].shape[0]
+                    #     for tower in unique_towers:
+                    #         st.markdown(f"<h4 style='color:#2C3E50; margin-bottom: 0;'>Tower: {tower}</h4>", unsafe_allow_html=True)
 
-                                total_recently_unsold += recently_unsold_count
-                                total_recently_sold += recently_sold_count
+                    #         with st.expander("", expanded=True):
+                    #             st.markdown("""
+                    #                 <style>
+                    #                     .streamlit-expanderHeader {
+                    #                         color: #2C3E50;
+                    #                         font-weight: bold;
+                    #                         font-size: 18px;
+                    #                     }
+                    #                     .streamlit-expander .streamlit-expanderContent {
+                    #                         color: #333333;
+                    #                     }
+                    #                 </style>
+                    #             """, unsafe_allow_html=True)
 
-                                st.markdown(f"<div style='margin-top:10px; font-weight:bold;'>Flats whose Sales got cancelled post current MIS: <span style='color:#007ACC'>{recently_unsold_count}</span></div>", unsafe_allow_html=True)
-                                st.markdown(f"<div style='font-weight:bold;'>Flats solds post current MIS: <span style='color:#28B463'>{recently_sold_count}</span></div>", unsafe_allow_html=True)
+                    #             recently_unsold_flats = sales_df[
+                    #                 (sales_df["Tower No"] == tower) &
+                    #                 (sales_df["Sold/Unsold"].str.lower() == "sold")
+                    #             ]["Flat no"].dropna().unique()
+                    #             st.write(f"Select Flats whose Sales got cancelled post latest MIS in Tower {tower}")
+                    #             selected_recently_unsold_flats = st.multiselect(
+                    #                 "",
+                    #                 recently_unsold_flats,
+                    #                 key=f"recently_unsold_flats_{tower}"
+                    #             )
 
-                        st.markdown("<hr style='border-top: 2px solid #bbb;'/>", unsafe_allow_html=True)
-                        st.markdown(f"<h4 style='color:#1A5276;'>Total Sold Flats whose sales got cancelled post latest MIS: <span style='color:#2E86C1'>{total_recently_unsold}</span></h4>", unsafe_allow_html=True)
-                        st.markdown(f"<h4 style='color:#145A32;'>Total Unsold Flats which went Sold post latest MIS: <span style='color:#28B463'>{total_recently_sold}</span></h4>", unsafe_allow_html=True)
+                    #             recently_sold_flats = sales_df[
+                    #                 (sales_df["Tower No"] == tower) &
+                    #                 (sales_df["Sold/Unsold"].str.lower() == "unsold")
+                    #             ]["Flat no"].dropna().unique()
+                    #             st.write(f"Select Unsold Flats which were Sold post latest MIS in Tower {tower}")
 
-                        st.session_state.step_3_data = {
-                            "recently_unsold_flats_by_tower": recently_unsold_flats_by_tower,
-                            "recently_sold_flats_by_tower": recently_sold_flats_by_tower,
-                            "total_recently_sold": total_recently_unsold,
-                            "total_recently_sold_selected": total_recently_sold,
-                        }
+                    #             selected_recently_sold_flats = st.multiselect(
+                    #                 "",
+                    #                 recently_sold_flats,
+                    #                 key=f"unsold_flats_{tower}"
+                    #             )
+
+                    #             combined_selected = list(set(selected_recently_unsold_flats) | set(selected_recently_sold_flats))
+                    #             recently_unsold_flats_by_tower[tower] = selected_recently_unsold_flats
+                    #             recently_sold_flats_by_tower[tower] = selected_recently_sold_flats
+
+                    #             selected_df = sales_df[
+                    #                 (sales_df["Tower No"] == tower) &
+                    #                 (sales_df["Flat no"].isin(combined_selected))
+                    #             ]
+
+                    #             recently_unsold_count = selected_df[selected_df["Sold/Unsold"].str.lower() == "sold"].shape[0]
+                    #             recently_sold_count = selected_df[selected_df["Sold/Unsold"].str.lower() == "unsold"].shape[0]
+
+                    #             total_recently_unsold += recently_unsold_count
+                    #             total_recently_sold += recently_sold_count
+
+                    #             st.markdown(f"<div style='margin-top:10px; font-weight:bold;'>Flats whose Sales got cancelled post current MIS: <span style='color:#007ACC'>{recently_unsold_count}</span></div>", unsafe_allow_html=True)
+                    #             st.markdown(f"<div style='font-weight:bold;'>Flats solds post current MIS: <span style='color:#28B463'>{recently_sold_count}</span></div>", unsafe_allow_html=True)
+
+                    #     st.markdown("<hr style='border-top: 2px solid #bbb;'/>", unsafe_allow_html=True)
+                    #     st.markdown(f"<h4 style='color:#1A5276;'>Total Sold Flats whose sales got cancelled post latest MIS: <span style='color:#2E86C1'>{total_recently_unsold}</span></h4>", unsafe_allow_html=True)
+                    #     st.markdown(f"<h4 style='color:#145A32;'>Total Unsold Flats which went Sold post latest MIS: <span style='color:#28B463'>{total_recently_sold}</span></h4>", unsafe_allow_html=True)
+
+                    #     st.session_state.step_3_data = {
+                    #         "recently_unsold_flats_by_tower": recently_unsold_flats_by_tower,
+                    #         "recently_sold_flats_by_tower": recently_sold_flats_by_tower,
+                    #         "total_recently_sold": total_recently_unsold,
+                    #         "total_recently_sold_selected": total_recently_sold,
+                    #     }
 
 
-                    else:
-                        st.warning("Sales data not available or missing required columns.")
+                    # else:
+                    #     st.warning("Sales data not available or missing required columns.")
 
 
                 st.subheader("Payment Details")
@@ -611,8 +768,7 @@ def step_4():
 
     uploaded_file = st.file_uploader("Upload Collection Bank statement", type="pdf")
     uploaded_file2 = st.file_uploader("Upload Corporate Bank statement", type="pdf")
-    uploaded_file3 = st.file_uploader("Upload Project statement", type="pdf")
-    creditTransactionAmount = 0
+    # uploaded_file3 = st.file_uploader("Upload Project statement", type="pdf")
     if uploaded_file is not None and uploaded_file2 is not None:
         
         download_response = process_bank_statement(uploaded_file)
@@ -625,6 +781,7 @@ def step_4():
             bajaj_housing_total = 0
             
             if "analysisData" in result['data'][0] and "transactions" in result2['data'][0]:
+                
                 card_html = """
                 <style>
                 .card-container {
@@ -665,13 +822,11 @@ def step_4():
 
                 cards = []
                 analysis_data = result['data'][0]['analysisData']
-                c = 0
                 for item in analysis_data:
                     month = item.get("month", "")
                     credit_amount = item.get("creditTransactionsAmount", 0.0)
 
-                    if c == 0:
-                        creditTransactionAmount = credit_amount
+                    
                     credit_count = item.get("noOfCreditTransactions", 0)
                     debit_amount = item.get("debitTransactionsAmount", 0)
                     debit_count = item.get("noOfDebitTransactions", 0)
@@ -694,91 +849,209 @@ def step_4():
 
                 card_html += "\n".join(cards) + "</div>"
 
-                html(card_html, height=400)
+                html(card_html, height=600)
+
+            step2 = st.session_state.get("step_2_data")
+            if step2:
+                st.header("Latest Data")
                 
-        else:
-            st.error(f"Download failed. Status code: {download_response.status_code}")
-            st.text(download_response.text)
-
                 
-
-        step2 = st.session_state.get("step_2_data")
-        if step2:
-            st.header("Latest Data")
-            for sheet, data in step2.items():
-                if isinstance(data, dict) and sheet == "COP-MOF":
-                    def render_styled_table(df, title):
-                        st.subheader(title)
-                        styled_html = df.to_html(classes='custom-table', index=False)
-                        st.markdown(styled_html, unsafe_allow_html=True)
-
-                    
-                    st.markdown("""
-                        <style>
-                        .custom-table {
-                            border-collapse: collapse;
-                            width: 100%;
-                            font-family: Arial, sans-serif;
-                            border-radius: 8px;
-                            overflow: hidden;
+                total_a_2_to_be_incurred = 0
+                customer_advance_incurred = 0
+                
+                
+                cop_mof_data = {}
+                mis_data = {}
+                
+                
+                for sheet, data in step2.items():
+                    if isinstance(data, dict) and sheet == "COP-MOF":
+                        
+                        df1 = data['df1']
+                        df2 = data['df2']
+                        
+                        
+                        cop_mof_data = {
+                            'df1': df1,
+                            'df2': df2,
+                            'bank_funds': df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values,
+                            'mean_of_finance': df2.loc[df2["PARTICULARS"].str.strip() == "MEANS OF FINANCE", "Incurred"].values,
+                            'total_a': df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values,
+                            'cust_adv_2': df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values,
+                            'cust_adv_1': df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values,
+                            'promoter_funds_2': df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values,
+                            'promoter_funds_1': df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values,
+                            'bank_funds_2': df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values,
+                            'bank_funds_1': df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values,
+                            'total_a_2': df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values,
+                            'total_a_1': df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values,
+                            'total_a_2_to_be_incurred': df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "To be incurred"].values,
                         }
-                        .custom-table th, .custom-table td {
-                            border: 1px solid #ddd;
-                            padding: 10px;
-                            text-align: left;
-                            color: #333333;
-                            background-color: #FFFFFF;
-                        }
-                        .custom-table th {
-                            background-color: #E0E0E0;
-                            font-weight: bold;
-                        }
-                        .custom-table tr:nth-child(even) {
-                            background-color: #F5F5F5;
-                        }
-                        .custom-table tr:hover {
-                            background-color: #D3E3FC;
-                        }
-                        </style>
-                    """, unsafe_allow_html=True)
+                        
+                        
+                        total_a_2_to_be_incurred = cop_mof_data['total_a_2_to_be_incurred']
+                        customer_advance_incurred = cop_mof_data['cust_adv_2'][0] if cop_mof_data['cust_adv_2'].size > 0 else 0
+                        customer_advance_incurred = customer_advance_incurred * 10000000
+                        
+                    elif isinstance(data, dict) and sheet == "MIS":
+                        
+                        df2 = data['df2']
+                        df1 = data['df1']
+                        
+                        if "Sold/Unsold" in df1.columns and "Sold/Unsold" in df2.columns:
+                            
+                            df1_map = df1.set_index("Flat no")
+                            df2_map = df2.set_index("Flat no")
+                            common_flats = set(df1_map.index).intersection(df2_map.index)
 
+                            sold_prev = df1[df1["Sold/Unsold"].str.lower().str.strip() == "sold"]
+                            sold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "sold"]
+                            unsold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "unsold"]
+                            
+                            new_units_sold = set(sold_curr["Flat no"]) - set(sold_prev["Flat no"])
+                            df_new_sold = df2[df2["Flat no"].isin(new_units_sold)]
+                            
+                            
+                            flat_bank_match_data = []
+                            bank_transactions = result['data'][0].get("transactions", [])
+                            total_delta_received = 0
+                            
+                            def is_match_found(expected_amt, name, transactions):
+                                name = name.lower()
+                                for txn in transactions:
+                                    if txn.get("type") == "Cr" and txn.get("monthYear") == "Mar-2025":
+                                        txn_amt = txn.get("amount", 0)
+                                        txn_name = txn.get("name", "").lower()
+                                        if abs(txn_amt - expected_amt) <= 5000 and name in txn_name:
+                                            return True
+                                return False
+                            
+                            for flat_no in common_flats:
+                                prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+                                curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
+                                
+                                if curr_status == "sold":
+                                    try:
+                                        agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
+                                        amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
+                                        received2 = agreement_value2 - amount_receivable2
+                                        
+                                        agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
+                                        amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
+                                        received1 = agreement_value1 - amount_receivable1
+                                        
+                                        delta = received2 - received1
+                                        total_delta_received += round(delta, 2)
+                                        expected_amt = delta * 1.04
+                                        
+                                        customer_name = df2_map.at[flat_no, "Name of Customer"] if "Name of Customer" in df2_map.columns else ""
+                                        tower_no = df2_map.at[flat_no, "Tower No"] if "Tower No" in df2_map.columns else ""
+                                        
+                                        match_found = is_match_found(expected_amt, customer_name, bank_transactions)
+                                        appeared_in_bank_statement = "No transaction check required"
+                                        
+                                        if match_found:
+                                            appeared_in_bank_statement = "✅ Yes"
+                                        else:
+                                            if delta != 0:
+                                                appeared_in_bank_statement = "❌ No"
+                                                
+                                        flat_bank_match_data.append({
+                                            "Flat No": flat_no,
+                                            "Tower No": tower_no,
+                                            "Customer Name": customer_name,
+                                            "Delta Received (₹)": round(delta, 2),
+                                            "Expected in Bank (₹)": round(expected_amt, 2),
+                                            "Appeared in Bank Statement": appeared_in_bank_statement
+                                        })
+                                    except Exception as e:
+                                        st.warning(f"Error in flat {flat_no}: {e}")
+                                        continue
+                            
+                            
+                            mis_data = {
+                                'df1': df1,
+                                'df2': df2,
+                                'df1_map': df1_map,
+                                'df2_map': df2_map,
+                                'sold_prev': sold_prev,
+                                'sold_curr': sold_curr,
+                                'unsold_curr': unsold_curr,
+                                'new_units_sold': new_units_sold,
+                                'df_new_sold': df_new_sold,
+                                'flat_bank_match_data': flat_bank_match_data,
+                                'total_delta_received': total_delta_received,
+                                'common_flats': common_flats,
+                                
+                                'total_unsold_saleable_area': unsold_curr["Sealable Area (in sq ft)"].apply(safe_float).sum(),
+                                'total_sold_units': len(sold_curr),
+                                'total_agreement_all_sold': sold_curr["Agreement value"].apply(safe_float).sum(),
+                                'total_receivable_all_sold': sold_curr["Amount Receivable"].apply(safe_float).sum(),
+                                'num_new_sold': len(df_new_sold),
+                                'total_agreement_new_sold': df_new_sold["Agreement value"].apply(safe_float).sum(),
+                                'total_receivable_new_sold': df_new_sold["Amount Receivable"].apply(safe_float).sum(),
+                            }
+                            
+                            
+                            mis_data['total_received_all_sold'] = mis_data['total_agreement_all_sold'] - mis_data['total_receivable_all_sold']
+                            mis_data['pct_received_all_sold'] = (mis_data['total_received_all_sold'] / mis_data['total_agreement_all_sold'] * 100) if mis_data['total_agreement_all_sold'] > 0 else 0.0
+                            mis_data['total_received_new_sold'] = mis_data['total_agreement_new_sold'] - mis_data['total_receivable_new_sold']
+                            mis_data['pct_received_new_sold'] = (mis_data['total_received_new_sold'] / mis_data['total_agreement_new_sold'] * 100) if mis_data['total_agreement_new_sold'] > 0 else 0.0
+                            
+                            
+                            msi = 27500
+                            loan_amount = 300000000
+                            overall_unsold_receivable = mis_data['total_unsold_saleable_area'] * msi
+                            loan_outstanding_prev = loan_amount
+                            loan_outstanding_curr = loan_amount - mis_data['total_received_all_sold']
+                            
+                            mis_data['cashflow_cover_prev'] = (mis_data['total_receivable_all_sold'] + overall_unsold_receivable) / loan_outstanding_prev
+                            mis_data['cashflow_cover_curr'] = (mis_data['total_receivable_all_sold'] + overall_unsold_receivable - total_a_2_to_be_incurred) / loan_outstanding_curr
+                            mis_data['security_cover_prev'] = overall_unsold_receivable / loan_outstanding_prev
+                            mis_data['security_cover_curr'] = overall_unsold_receivable / loan_outstanding_curr
+                            mis_data['expected_swept_amount'] = 0.15 * total_delta_received
+                
+                
+                def render_styled_table(df, title):
+                    st.subheader(title)
+                    styled_html = df.to_html(classes='custom-table', index=False)
+                    st.markdown(styled_html, unsafe_allow_html=True)
+                
+                
+                st.markdown("""
+                    <style>
+                    .custom-table {
+                        border-collapse: collapse;
+                        width: 100%;
+                        font-family: Arial, sans-serif;
+                        border-radius: 8px;
+                        overflow: hidden;
+                    }
+                    .custom-table th, .custom-table td {
+                        border: 1px solid #ddd;
+                        padding: 10px;
+                        text-align: left;
+                        color: #333333;
+                        background-color: #FFFFFF;
+                    }
+                    .custom-table th {
+                        background-color: #E0E0E0;
+                        font-weight: bold;
+                    }
+                    .custom-table tr:nth-child(even) {
+                        background-color: #F5F5F5;
+                    }
+                    .custom-table tr:hover {
+                        background-color: #D3E3FC;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+                
+                
+                if cop_mof_data:
+                    render_styled_table(cop_mof_data["df2"], "COP-MOF Current")
                     
-                    df1 = data['df1']
-                    df2 = data['df2']
-                    bank_funds = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                    mean_of_finance = df2.loc[df2["PARTICULARS"].str.strip() == "MEANS OF FINANCE", "Incurred"].values
-                    total_a = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
-                    cust_adv_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
-                    cust_adv_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "customer advance", "Incurred"].values
-                    promoter_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
-                    promoter_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "promoter funds", "Incurred"].values
-                    bank_funds_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                    bank_funds_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "bank funds", "Incurred"].values
-                    total_a_2 = df2.loc[df2["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
-                    total_a_1 = df1.loc[df1["PARTICULARS"].str.strip().str.lower() == "total (a)", "Incurred"].values
                     
-                    
-
-                    if uploaded_file and cust_adv_2.size > 0:
-                        cust_adv_incurred = float(cust_adv_2[0])
-                        creditTransactionAmount = creditTransactionAmount/100000000
-                        if creditTransactionAmount < cust_adv_incurred:
-                            st.markdown(f"""
-                            <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
-                                <b>Red Flag:</b><br>
-                                Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) is less than Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                            <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
-                                <b>Green Flag:</b><br>
-                                Credit Transaction Amount (₹{creditTransactionAmount:.2f} Cr) covers Customer Advance Incurred (₹{cust_adv_incurred:.2f} Cr)
-                            </div>
-                            """, unsafe_allow_html=True)
-                    
-                    render_styled_table(data["df2"], f"COP-MOF Current")
-
                     card_html = """
                     <style>
                     .card-container {
@@ -809,320 +1082,299 @@ def step_4():
                     </style>
                     <div class="card-container">
                     """
-
                     
                     cards = []
-
                     
-                    if bank_funds.size > 0:
-                        value = float(bank_funds[0]) / 100.0
+                    
+                    if cop_mof_data['bank_funds'].size > 0:
+                        value = float(cop_mof_data['bank_funds'][0]) / 100.0
                         cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Obligation:</b><br>₹{value:.2f} Cr</div>")
-
                     
-                    if mean_of_finance.size > 0 and total_a.size > 0:
-                        value = float(mean_of_finance[0]) - float(total_a[0])
+                    if cop_mof_data['mean_of_finance'].size > 0 and cop_mof_data['total_a'].size > 0:
+                        value = float(cop_mof_data['mean_of_finance'][0]) - float(cop_mof_data['total_a'][0])
                         cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Balance:</b><br>₹{value:.2f} Cr</div>")
-
                     
-                    if cust_adv_2.size > 0 and cust_adv_1.size > 0:
-                        value = float(cust_adv_2[0]) - float(cust_adv_1[0])
+                    if cop_mof_data['cust_adv_2'].size > 0 and cop_mof_data['cust_adv_1'].size > 0:
+                        value = float(cop_mof_data['cust_adv_2'][0]) - float(cop_mof_data['cust_adv_1'][0])
                         cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Change in Customer Advance:</b><br>₹{value:.2f} Cr</div>")
-
                     
-                    if promoter_funds_2.size > 0 and promoter_funds_1.size > 0:
-                        value = float(promoter_funds_2[0]) - float(promoter_funds_1[0])
+                    if cop_mof_data['promoter_funds_2'].size > 0 and cop_mof_data['promoter_funds_1'].size > 0:
+                        value = float(cop_mof_data['promoter_funds_2'][0]) - float(cop_mof_data['promoter_funds_1'][0])
                         cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>Change in Promoter Funds:</b><br>₹{value:.2f} Cr</div>")
-
                     
-                    if bank_funds_2.size > 0 and bank_funds_1.size > 0:
-                        value = float(bank_funds_2[0]) - float(bank_funds_1[0])
+                    if cop_mof_data['bank_funds_2'].size > 0 and cop_mof_data['bank_funds_1'].size > 0:
+                        value = float(cop_mof_data['bank_funds_2'][0]) - float(cop_mof_data['bank_funds_1'][0])
                         cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Change in Bank Funds:</b><br>₹{value:.2f} Cr</div>")
-
                     
-                    if total_a_2.size > 0 and total_a_1.size > 0:
-                        value = float(total_a_2[0]) - float(total_a_1[0])
+                    if cop_mof_data['total_a_2'].size > 0 and cop_mof_data['total_a_1'].size > 0:
+                        value = float(cop_mof_data['total_a_2'][0]) - float(cop_mof_data['total_a_1'][0])
                         cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Change in Total (A):</b><br>₹{value:.2f} Cr</div>")
-
                     
                     card_html += "\n".join(cards) + "</div>"
-
-                    
                     html(card_html, height=200)
-
-
-                if isinstance(data, dict) and sheet == "MIS":
-                    df2 = data['df2']
-                    df1 = data['df1']
-
-                    
-
-                    if "Sold/Unsold" in df1.columns and "Sold/Unsold" in df2.columns:
-
-                        df1_map = df1.set_index("Flat no")
-                        df2_map = df2.set_index("Flat no")
-
-                        common_flats = set(df1_map.index).intersection(df2_map.index)
-
-                        flat_bank_match_data = []
-                        bank_transactions = result['data'][0].get("transactions", [])
-
-                        total_delta_received = 0
-
-                        def is_match_found(expected_amt, name, transactions):
-                            name = name.lower()
-                            for txn in transactions:
-                                if txn.get("type") == "Cr" and txn.get("monthYear") == "Mar 2025":
-                                    txn_amt = txn.get("amount", 0)
-                                    txn_name = txn.get("name", "").lower()
-                                    if abs(txn_amt - expected_amt) <= 5000 and name in txn_name:
-                                        return True
-                            return False
-
-                        for flat_no in common_flats:
-                            prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
-                            curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
-
-                            if curr_status == "sold":
-                                try:
-                                    agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
-                                    amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
-                                    received2 = agreement_value2 - amount_receivable2
-
-                                    agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
-                                    amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
-                                    received1 = agreement_value1 - amount_receivable1
-
-                                    delta = received2 - received1
-
-                                    total_delta_received += round(delta,2)
-                                    expected_amt = delta * 1.04
-
-                                    customer_name = df2_map.at[flat_no, "Name of Customer"] if "Name of Customer" in df2_map.columns else ""
-                                    tower_no = df2_map.at[flat_no, "Tower No"] if "Tower No" in df2_map.columns else ""
-
-                                    match_found = is_match_found(expected_amt, customer_name, bank_transactions)
-
-                                    flat_bank_match_data.append({
-                                        "Flat No": flat_no,
-                                        "Tower No": tower_no,
-                                        "Customer Name": customer_name,
-                                        "Delta Received (₹)": round(delta, 2),
-                                        "Expected in Bank (₹)": round(expected_amt, 2),
-                                        "Appeared in Bank Statement": "✅ Yes" if match_found else "❌ No"
-                                    })
-
-                                except Exception as e:
-                                    st.warning(f"Error in flat {flat_no}: {e}")
-                                    continue
-
-                        
-                        if flat_bank_match_data:
-                            st.subheader("Matching Received Amount with Bank Statement")
-                            result_df = pd.DataFrame(flat_bank_match_data)
-                            st.dataframe(result_df, use_container_width=True)
-                        else:
-                            st.info("No matching sold flats found for delta-bank check.")
-
-
-                        df1_map = df1.set_index("Flat no")
-                        df2_map = df2.set_index("Flat no")
-
-                        sold_prev = df1[df1["Sold/Unsold"].str.lower().str.strip() == "sold"]
-                        sold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "sold"]
-
-                        
-
-                        new_units_sold = set(sold_curr["Flat no"]) - set(sold_prev["Flat no"])
-                        df_new_sold = df2[df2["Flat no"].isin(new_units_sold)]
-
-                        def safe_float(val):
-                            try:
-                                return float(val)
-                            except:
-                                return 0.0
-
-                        unsold_curr = df2[df2["Sold/Unsold"].str.lower().str.strip() == "unsold"]
-                        total_unsold_saleable_area = unsold_curr["Sealable Area (in sq ft)"].apply(safe_float).sum()
-                        msi = 27500
-                        total_sold_units = len(sold_curr)
-                        total_agreement_all_sold = sold_curr["Agreement value"].apply(safe_float).sum()
-                        total_receivable_all_sold = sold_curr["Amount Receivable"].apply(safe_float).sum()
-                        total_received_all_sold = total_agreement_all_sold - total_receivable_all_sold
-                        pct_received_all_sold = (total_received_all_sold / total_agreement_all_sold * 100) if total_agreement_all_sold > 0 else 0.0
-
-                        
-                        num_new_sold = len(df_new_sold)
-                        total_agreement_new_sold = df_new_sold["Agreement value"].apply(safe_float).sum()
-                        total_receivable_new_sold = df_new_sold["Amount Receivable"].apply(safe_float).sum()
-                        total_received_new_sold = total_agreement_new_sold - total_receivable_new_sold
-                        pct_received_new_sold = (total_received_new_sold / total_agreement_new_sold * 100) if total_agreement_new_sold > 0 else 0.0
-                        loan_amount = 300000000
-                        x = 510000000
-                        interest = 3250000
-                        
-                        security_cover_prev = x/loan_amount
-                        security_cover_curr = x/(loan_amount-interest)
-                        overall_receivable = total_unsold_saleable_area * msi
-                        receivable_cover_prev = overall_receivable/loan_amount
-                        receivable_cover_curr = overall_receivable/(loan_amount-interest)
-
-                        expected_swept_amount = 0.15 * total_delta_received
-                        
-                        card_html = """
-                        <style>
-                        .card-container {
-                            display: flex;
-                            flex-wrap: wrap;
-                            justify-content: space-between;
-                            gap: 20px;
-                        }
-                        .card {
-                            flex: 0 0 32%;
-                            background-color: #ffffff;
-                            padding: 15px;
-                            border-radius: 12px;
-                            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-                            box-sizing: border-box;
-                            color: #333;
-                            font-family: Arial, sans-serif;
-                        }
-                        .card b {
-                            color: #000;
-                            font-size: 16px;
-                        }
-                        @media (max-width: 768px) {
-                            .card {
-                                flex: 0 0 100%;
-                            }
-                        }
-                        </style>
-                        <div class="card-container">
-                        """
-
-                        cards = []
-
-                        cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Total units sold:</b><br>{total_sold_units}</div>")
-                        cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Recently sold units:</b><br>{num_new_sold}</div>")
-                        cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Amount Received from recently sold units:</b><br>₹{total_received_new_sold:,.2f}</div>")
-                        cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>% Received from recently sold units:</b><br>{pct_received_new_sold:.2f}%</div>")
-                        cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Amount Received from all sold units:</b><br>₹{total_received_all_sold:,.2f}</div>")
-                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>% Received from All Sold Units:</b><br>{pct_received_all_sold:.2f}%</div>")
-                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Previous Security Cover:</b><br>{security_cover_prev:.2f}</div>")
-                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Security Cover:</b><br>{security_cover_curr:.2f}</div>")
-                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Previous Receivable Cover:</b><br>{receivable_cover_prev:.2f}</div>")
-                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Receivable Cover:</b><br>{receivable_cover_curr:.2f}</div>")
-                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Expected Amount to be debited to Bajaj Housing Fincance:</b><br>Rs. {expected_swept_amount:.2f}</div>")
-                        cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Actual Amount Debited this month to Bajaj Housing Finance from 30% account:</b><br>Rs. {bajaj_housing_total:.2f}</div>")
-                        
-
-                        card_html += "\n".join(cards) + "</div>"
-
-                        html(card_html, height=420)
-
-                        if bajaj_housing_total < expected_swept_amount:
-                            st.markdown(f"""
-                                <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
-                                    <b>Red Flag:</b><br>
-                                    Swept Amount (₹{bajaj_housing_total:.2f} Cr) is less than Expected Amount Swept (₹{expected_swept_amount:.2f} Cr)
-                                </div>
-                                """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                            <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
-                                <b>Green Flag:</b><br>
-                                Swept Amount (₹{bajaj_housing_total:.2f} Cr) covers Expected Amount Swept (₹{expected_swept_amount:.2f} Cr)
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                        average_expected = 1000000
-                        if bajaj_housing_total < average_expected:
-                            st.markdown(f"""
-                                <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
-                                    <b>Red Flag:</b><br>
-                                    Swept Amount (₹{expected_swept_amount:.2f} Cr) is less than Average Historical Swept (₹{average_expected:.2f} Cr)
-                                </div>
-                                """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                            <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
-                                <b>Green Flag:</b><br>
-                                Swept Amount (₹{expected_swept_amount:.2f} Cr) covers Average Historical Swept (₹{average_expected:.2f} Cr)
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                    
-                        
-
-                        
-
-                    
-                    # required_cols = {"Flat no", "Agreement value", "Amount Receivable", "Sold/Unsold"}
-                    # if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
-                    #     st.warning("Required columns missing in MIS data.")
-                    #     return
-
-                    
-                    # ready_for_noc = []
-                    # pending_for_noc = []
-
-                    # df1_map = df1.set_index("Flat no")
-                    # df2_map = df2.set_index("Flat no")
-
-                    # common_flats = set(df1_map.index).intersection(df2_map.index)
-                    # delta_total = 0
-
-                    # for flat_no in common_flats:
-                    #     prev_status = str(df1_map.at[flat_no, "Sold/Unsold"]).strip().lower()
-                    #     curr_status = str(df2_map.at[flat_no, "Sold/Unsold"]).strip().lower()
-
-                    #     if curr_status == "sold":
-                    #         try:
-                    #             agreement_value2 = float(df2_map.at[flat_no, "Agreement value"])
-                    #             amount_receivable2 = float(df2_map.at[flat_no, "Amount Receivable"])
-                    #             received2 = agreement_value2 - amount_receivable2
-
-                    #             agreement_value1 = float(df1_map.at[flat_no, "Agreement value"])
-                    #             amount_receivable1 = float(df1_map.at[flat_no, "Amount Receivable"])
-                    #             received1 = agreement_value1 - amount_receivable1
-
-                    #             delta = received2 - received1
-                    #             delta_total += delta
-
-                                
-
-                    #             if received2 > 0.15 * agreement_value2:
-                    #                 ready_for_noc.append(flat_no)
-                    #             else:
-                    #                 pending_for_noc.append(flat_no)
-
-                    #         except Exception as e:
-                    #             st.warning(f"Data error in Flat {flat_no}: {e}")
-                    #             continue
-
-                    
-
-                    # st.markdown("NOC Status from MIS + Bank Statement")
-                    
-                    # if ready_for_noc:
-                    #     st.markdown("### ✅ Units which are Ready for NOC ")
-                    #     for item in ready_for_noc:
-                    #         st.markdown(f"- {item}")
-
-                    # if pending_for_noc:
-                    #     st.markdown("### ❌ Units which are Pending for NOC")
-                    #     for item in pending_for_noc:
-                    #         st.markdown(f"- {item}")
-
-
-                    # required_in_bank = delta_total + 0.05 * delta_total - 0.01 * delta_total
-
-                    # minimum account balance should be greater than equal to required_in_bank
-
-
                 
+                
+                if mis_data:
+                    
+                    if mis_data['flat_bank_match_data']:
+                        st.subheader("Matching Received Amount with Bank Statement")
+                        result_df = pd.DataFrame(mis_data['flat_bank_match_data'])
+                        st.dataframe(result_df, use_container_width=True)
+                    else:
+                        st.info("No matching sold flats found for delta-bank check.")
+                    
+                    
+                    card_html = """
+                    <style>
+                    .card-container {
+                        display: flex;
+                        flex-wrap: wrap;
+                        justify-content: space-between;
+                        gap: 20px;
+                    }
+                    .card {
+                        flex: 0 0 32%;
+                        background-color: #ffffff;
+                        padding: 15px;
+                        border-radius: 12px;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                        box-sizing: border-box;
+                        color: #333;
+                        font-family: Arial, sans-serif;
+                    }
+                    .card b {
+                        color: #000;
+                        font-size: 16px;
+                    }
+                    @media (max-width: 768px) {
+                        .card {
+                            flex: 0 0 100%;
+                        }
+                    }
+                    </style>
+                    <div class="card-container">
+                    """
+                    
+                    cards = []
+                    
+                    
+                    cards.append(f"<div class='card' style='background-color:#F0F8FF'><b>Total units sold:</b><br>{mis_data['total_sold_units']}</div>")
+                    cards.append(f"<div class='card' style='background-color:#FFF8E1'><b>Recently sold units:</b><br>{mis_data['num_new_sold']}</div>")
+                    cards.append(f"<div class='card' style='background-color:#E8F5E9'><b>Amount Received from recently sold units:</b><br>₹{mis_data['total_received_new_sold']:,.2f}</div>")
+                    cards.append(f"<div class='card' style='background-color:#FBE9E7'><b>% Received from recently sold units:</b><br>{mis_data['pct_received_new_sold']:.2f}%</div>")
+                    cards.append(f"<div class='card' style='background-color:#E3F2FD'><b>Amount Received from all sold units:</b><br>₹{mis_data['total_received_all_sold']:,.2f}</div>")
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>% Received from All Sold Units:</b><br>{mis_data['pct_received_all_sold']:.2f}%</div>")
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Feb Cash Flow Cover*:</b><br>{mis_data['cashflow_cover_prev']:.2f}</div>")
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Cash Flow Cover*:</b><br>{mis_data['cashflow_cover_curr']:.2f}</div>")
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Feb Security Cover**:</b><br>{mis_data['security_cover_prev']:.2f}</div>")
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Current Security Cover**:</b><br>{mis_data['security_cover_curr']:.2f}</div>")
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Expected Amount to be debited to Financial Institution:</b><br>₹ {mis_data['expected_swept_amount']:.2f}</div>")
+                    cards.append(f"<div class='card' style='background-color:#FFF3E0'><b>Actual Amount Debited this month to Financial Institution from 30% account:</b><br>₹ {bajaj_housing_total:.2f}</div>")
+                    
+                    card_html += "\n".join(cards) + "</div>"
+                    html(card_html, height=420)
+                    
+                    
+                    expected_swept_amount = mis_data['expected_swept_amount']
 
+                    st.markdown(
+                        """
+                        <div style="
+                            background-color: #f9f9f9;
+                            border-left: 4px solid #007ACC;
+                            padding: 1rem;
+                            margin-top: 1rem;
+                            margin-bottom: 1rem;
+                            border-radius: 6px;
+                            font-size: 16px;
+                        ">
+                            <strong>*Cash flow cover</strong> = (Sold balance receivable + Unsold Receivable at MSP) / Loan outstanding  
+                            <br><br>
+                            <strong>**Security Cover</strong> = Unsold units at MSP / Loan outstanding
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    
+                    
+                    if bajaj_housing_total < expected_swept_amount:
+                        st.markdown(f"""
+                            <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
+                                <b>Red Flag:</b><br>
+                                Swept Amount (₹{bajaj_housing_total:.2f}) is less than Expected Amount Swept (₹{expected_swept_amount:.2f})
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
+                            <b>Green Flag:</b><br>
+                            Swept Amount (₹{bajaj_housing_total:.2f}) covers Expected Amount Swept (₹{expected_swept_amount:.2f})
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    
+                    average_expected = 1000000
+                    if bajaj_housing_total < average_expected:
+                        st.markdown(f"""
+                            <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
+                                <b>Red Flag:</b><br>
+                                Swept Amount (₹{expected_swept_amount:.2f}) is less than Average Swept (₹{average_expected:.2f})
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
+                            <b>Green Flag:</b><br>
+                            Swept Amount (₹{expected_swept_amount:.2f}) covers Average Swept (₹{average_expected:.2f})
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    
+                    if customer_advance_incurred != mis_data['total_received_all_sold']:
+                        st.markdown(f"""
+                            <div style='padding:10px; background-color:#FFCDD2; border-left:5px solid #C62828; border-radius:6px;'>
+                                <b>Red Flag:</b><br>
+                                Customer Advance Incurred (₹{customer_advance_incurred:.2f}) is not equal to the Total Received Amount from Sales (₹{mis_data['total_received_all_sold']:.2f})
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style='padding:10px; background-color:#C8E6C9; border-left:5px solid #2E7D32; border-radius:6px;'>
+                            <b>Green Flag:</b><br>
+                            Customer Advance Incurred (₹{customer_advance_incurred:.2f}) equals to the Total Received Amount from Sales (₹{mis_data['total_received_all_sold']:.2f})
+                        </div>
+                        """, unsafe_allow_html=True)
+            
+
+
+            else:
+                st.warning("Step 2 data missing.")  
+
+
+            if "step_3_data" in st.session_state and "noc_data" in st.session_state["step_3_data"] and "selected_units" in st.session_state["step_3_data"]['noc_data']:
+                noc_data = st.session_state["step_3_data"]['noc_data']['selected_units']
+                
+                
+                ready_for_noc = []
+                not_ready_for_noc = []
+                
+                for unit in noc_data:
+                    agreement_value = safe_float(unit.get('agreement_value'))
+                    amount_received = safe_float(unit.get('amount_received'))
+                    
+                    threshold = 27500 * safe_float(unit.get('saleable_area'))
+                    
+                    
+                    unit_with_status = unit.copy()
+                    unit_with_status['threshold_amount'] = threshold
+                    unit_with_status['percentage_received'] = (amount_received / agreement_value * 100) if agreement_value > 0 else 0
+                    
+                    
+                    if agreement_value >= threshold:
+                        ready_for_noc.append(unit_with_status)
+                    else:
+                        not_ready_for_noc.append(unit_with_status)
+                
+                
+                if ready_for_noc:
+                    st.subheader("Units Ready for NOC")
+                    
+                    ready_df = pd.DataFrame(ready_for_noc)
+                    
+                    numeric_columns = ['agreement_value', 'amount_received', 'amount_receivable', 'percentage_received', 'saleable_area']
+                    for col in numeric_columns:
+                        ready_df[col] = ready_df[col].apply(safe_float)
+
+                    ready_df['agreement_value_per_sq_ft'] = ready_df['agreement_value']/ready_df['saleable_area']
+                    
+                    display_columns = {
+                        'tower_no': 'Tower',
+                        'flat_no': 'Flat No',
+                        'agreement_value': 'Agreement Value',
+                        'amount_received': 'Amount Received',
+                        'amount_receivable': 'Amount Receivable',
+                        # 'percentage_received': 'Percentage Received (%)',
+                        'saleable_area': 'Saleable Area (sq ft)',
+                        'agreement_value_per_sq_ft': 'Agreement Value ₹ per sq ft'
+                    }
+                    
+                    
+                    ready_display = ready_df[list(display_columns.keys())].rename(columns=display_columns)
+                    
+                    ready_display['Agreement Value'] = ready_display['Agreement Value'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) else "₹0")
+                    ready_display['Amount Received'] = ready_display['Amount Received'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) else "₹0")
+                    ready_display['Amount Receivable'] = ready_display['Amount Receivable'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) else "₹0")
+                    # ready_display['Percentage Received (%)'] = ready_display['Percentage Received (%)'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "0.0%")
+                    ready_display['MSP (₹ per sq ft)'] = "27500"
+                    # ready_display['Saleable Area'] = ready_display['Saleable Area (sq ft)']
+                    st.dataframe(ready_display, use_container_width=True, hide_index=True)
+
+                if not_ready_for_noc:
+                    st.subheader("Units Not Ready for NOC")
+
+
+                    not_ready_df = pd.DataFrame(not_ready_for_noc)
+
+                    
+                    numeric_columns = ['agreement_value', 'amount_received', 'threshold_amount', 'percentage_received', 'saleable_area']
+                    for col in numeric_columns:
+                        not_ready_df[col] = not_ready_df[col].apply(safe_float)
+                    
+                    
+                    not_ready_df['shortfall'] = not_ready_df['threshold_amount'] - not_ready_df['amount_received']
+                    not_ready_df['agreement_value_per_sq_ft'] = not_ready_df['agreement_value']/not_ready_df['saleable_area']
+                    
+                    display_columns = {
+                        'tower_no': 'Tower',
+                        'flat_no': 'Flat No',
+                        'agreement_value': 'Agreement Value',
+                        'amount_received': 'Amount Received',
+                        'threshold_amount': 'Required Amount',
+                        # 'percentage_received': 'Percentage Received (%)',
+                        'shortfall': 'Shortfall',
+                        'saleable_area': 'Saleable Area (sq ft)',
+                        'agreement_value_per_sq_ft': 'Agreement Value ₹ per sq ft'
+                    }
+                    
+                    not_ready_display = not_ready_df[list(display_columns.keys())].rename(columns=display_columns)
+                    
+                    
+                    not_ready_display['Agreement Value'] = not_ready_display['Agreement Value'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) else "₹0")
+                    not_ready_display['Amount Received'] = not_ready_display['Amount Received'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) else "₹0")
+                    not_ready_display['Required Amount'] = not_ready_display['Required Amount'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) else "₹0")
+                    # not_ready_display['Percentage Received (%)'] = not_ready_display['Percentage Received (%)'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "0.0%")
+                    not_ready_display['Shortfall'] = not_ready_display['Shortfall'].apply(lambda x: f"₹{x:,.0f}" if pd.notna(x) else "₹0")
+                    not_ready_display['MSP (₹ per sq ft)'] = "27500"
+                    # not_ready_display['Saleable Area'] = not_ready_display['Saleable Area (sq ft)']
+                    not_ready_display['Comment'] = 'MSP condition not met. Need to request for Deviation'
+                    st.dataframe(not_ready_display, use_container_width=True, hide_index=True)
+                    
+                    
+                st.session_state.step_4_data = {
+                    "collection_bank_statement": result['data'][0]['analysisData'],
+                    "corporate_bank_statement": result2['data'][0]['transactions'],
+                    "units_ready_for_noc": ready_for_noc,
+                    "units_not_ready_for_noc": not_ready_for_noc
+                }
+                st.subheader("NOC Summary")
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.write("Total Units", len(noc_data))
+
+                with col2:
+                    st.write("Ready for NOC", len(ready_for_noc))
+
+                with col3:
+                    st.write("Not Ready for NOC", len(not_ready_for_noc))
+            else:
+                st.warning("No NOC data found. Please select units first.")
+            
+            chatbot_interface()
         else:
-            st.warning("Step 2 data missing.")
+            st.error(f"Download failed. Status code: {download_response.status_code}")
+            st.text(download_response.text)
 
         
 
@@ -1130,74 +1382,78 @@ def step_4():
     step2_data = st.session_state.get("step_2_data")
 
     
-    if "MIS" in step2_data and "df2" in step2_data["MIS"]:
-        df1 = step2_data["MIS"]["df2"]
+    # if "MIS" in step2_data and "df2" in step2_data["MIS"]:
+    #     df1 = step2_data["MIS"]["df2"]
 
-        sales = st.session_state.get("step_3_data")
-        if sales:
-            st.header("Sales Information")
-            all_flats = []
-            c = 0
-            for tower, flats in sales["recently_sold_flats_by_tower"].items():
+    #     sales = st.session_state.get("step_3_data")
+    #     if sales:
+    #         st.header("Sales Information")
+    #         all_flats = []
+    #         c = 0
+    #         for tower, flats in sales["recently_sold_flats_by_tower"].items():
                 
-                for flat in flats:
-                    if c == 0:
-                        st.markdown(f"- **Per Sq.Ft rate of Tower {tower} and Flat {flat} is not as per business plan.**")
-                    c = 1
-                    all_flats.append({
-                        "Tower No": tower,
-                        "Flat no": flat,
-                        "Sold/Unsold": "Sold"
-                    })
+    #             for flat in flats:
+    #                 if c == 0:
+    #                     st.markdown(f"- **Per Sq.Ft rate of Tower {tower} and Flat {flat} is not as per business plan.**")
+    #                 c = 1
+    #                 all_flats.append({
+    #                     "Tower No": tower,
+    #                     "Flat no": flat,
+    #                     "Sold/Unsold": "Sold"
+    #                 })
 
-            for tower, flats in sales["recently_unsold_flats_by_tower"].items():
-                for flat in flats:
-                    all_flats.append({
-                        "Tower No": tower,
-                        "Flat no": flat,
-                        "Sold/Unsold": "Unsold"
-                    })
+    #         for tower, flats in sales["recently_unsold_flats_by_tower"].items():
+    #             for flat in flats:
+    #                 all_flats.append({
+    #                     "Tower No": tower,
+    #                     "Flat no": flat,
+    #                     "Sold/Unsold": "Unsold"
+    #                 })
 
 
-            df2 = pd.DataFrame(all_flats)
-            required_cols = ["Flat no", "Tower No", "Sold/Unsold"]
-            missing_cols = [col for col in required_cols if col not in df2.columns]
+    #         df2 = pd.DataFrame(all_flats)
+    #         required_cols = ["Flat no", "Tower No", "Sold/Unsold"]
+    #         missing_cols = [col for col in required_cols if col not in df2.columns]
 
-            if missing_cols:
-                st.write("No sales data to display")
-                # st.error(f"Missing columns in data: {missing_cols}")
-                # st.dataframe(df2, use_container_width=True, height=600)
-                pass
-            else:
-                id_column = "Flat no"
-                comparison_df = df2.copy()
-                status_map = dict(zip(df1[id_column], df1["Sold/Unsold"].astype(str).str.strip()))
+    #         if missing_cols:
+    #             st.write("No sales data to display")
+    #             # st.error(f"Missing columns in data: {missing_cols}")
+    #             # st.dataframe(df2, use_container_width=True, height=600)
+    #             pass
+    #         else:
+    #             id_column = "Flat no"
+    #             comparison_df = df2.copy()
+    #             status_map = dict(zip(df1[id_column], df1["Sold/Unsold"].astype(str).str.strip()))
 
-                def highlight_rows(row):
-                    current_id = row[id_column]
-                    current_status = str(row["Sold/Unsold"]).strip().lower()
-                    previous_status = status_map.get(current_id, "").strip().lower()
+    #             def highlight_rows(row):
+    #                 current_id = row[id_column]
+    #                 current_status = str(row["Sold/Unsold"]).strip().lower()
+    #                 previous_status = status_map.get(current_id, "").strip().lower()
 
-                    if previous_status and current_status != previous_status:
-                        if previous_status == "unsold" and current_status == "sold":
+    #                 if previous_status and current_status != previous_status:
+    #                     if previous_status == "unsold" and current_status == "sold":
                             
-                            return ['background-color: #228B22; color: white'] * len(row)
-                        elif previous_status == "sold" and current_status == "unsold":
+    #                         return ['background-color: #228B22; color: white'] * len(row)
+    #                     elif previous_status == "sold" and current_status == "unsold":
                             
-                            return ['background-color: #B22222; color: white'] * len(row)
+    #                         return ['background-color: #B22222; color: white'] * len(row)
 
-                    if current_status == "sold":
+    #                 if current_status == "sold":
                         
-                        return ['background-color: #DFFFD6; color: #333333'] * len(row)
-                    elif current_status == "unsold":
+    #                     return ['background-color: #DFFFD6; color: #333333'] * len(row)
+    #                 elif current_status == "unsold":
                        
-                        return ['background-color: #FFD6D6; color: #333333'] * len(row)
+    #                     return ['background-color: #FFD6D6; color: #333333'] * len(row)
 
-                    return ['background-color: #FFFFFF; color: #333333'] * len(row)
+    #                 return ['background-color: #FFFFFF; color: #333333'] * len(row)
                 
-                styled_df = comparison_df[["Flat no", "Tower No", "Sold/Unsold"]].style.apply(highlight_rows, axis=1)
-                st.write(styled_df)
+    #             styled_df = comparison_df[["Flat no", "Tower No", "Sold/Unsold"]].style.apply(highlight_rows, axis=1)
+    #             st.write(styled_df)
+    
 
+    
+
+    
 
     col1, col2 = st.columns(2)
     with col1:
@@ -1709,6 +1965,214 @@ def step_6():
             file_name='lease_comparison.csv',
             mime='text/csv'
         )
+
+
+def create_context_from_session():
+    
+    context_parts = []
+    session_data = dict(st.session_state)
+    print("Session Data", session_data)
+    
+    context_parts.append("Here is a summary of the available data for analysis:")
+
+    if "step_1_data" in session_data:
+        print("Session Data 1",session_data['step_1_data'])
+        context_parts.append(f"Sanction letter details {session_data['step_1_data']}")
+    
+    if 'step_4_data' in session_data:
+        context_parts.append("\n=== BANK STATEMENT DATA ===")
+        bank_data = session_data['step_4_data']
+        context_parts.append(f"Collection Bank Statement Details are: {bank_data['collection_bank_statement']}")
+        context_parts.append(f"Corporate Bank Statement Details are: {bank_data['corporate_bank_statement']}")
+        context_parts.append(f"Details about units where are ready for noc: {bank_data['units_ready_for_noc']}")
+        context_parts.append(f"Details about units where are not ready for noc: {bank_data['units_not_ready_for_noc']}")
+        if isinstance(bank_data, dict):
+            transaction_count = len(bank_data.get('transactions', []))
+            context_parts.append(f"A bank statement has been processed with {transaction_count} transactions.")
+    
+    
+    if 'step_2_data' in session_data:
+        context_parts.append("\n=== FINANCIAL DATA (COP-MOF & MIS) ===")
+        step2_data = session_data['step_2_data']
+        
+        if 'COP-MOF' in step2_data:
+            context_parts.append("--- COP-MOF (Cost of Project & Means of Finance) Analysis ---")
+            cop_data = step2_data['COP-MOF']
+            if isinstance(cop_data, dict) and 'df2' in cop_data and isinstance(cop_data['df2'], pd.DataFrame):
+                df2 = cop_data['df2']
+                context_parts.append(f"Financial statements contain {len(df2)} line items.")
+                
+                for _, row in df2.head(3).iterrows():
+                    context_parts.append(f"  - {row.get('PARTICULARS', 'N/A')}: {row.get('Incurred', 'N/A')}")
+        
+        if 'MIS' in step2_data:
+            context_parts.append("\n--- MIS (Sales) Analysis ---")
+            mis_data = step2_data['MIS']
+            if isinstance(mis_data, dict) and 'df2' in mis_data and isinstance(mis_data['df2'], pd.DataFrame):
+                df2 = mis_data['df2']
+                
+                if 'Sold/Unsold' in df2.columns:
+                    sold_units = df2[df2['Sold/Unsold'].str.lower().str.strip() == 'sold']
+                    unsold_units = df2[df2['Sold/Unsold'].str.lower().str.strip() == 'unsold']
+                    
+                    context_parts.append(f"Total sold units: {len(sold_units)}")
+                    context_parts.append(f"Total unsold units: {len(unsold_units)}")
+                    
+                    if len(sold_units) > 0 and 'Agreement value' in sold_units.columns and 'Amount Receivable' in sold_units.columns:
+                        total_agreement = pd.to_numeric(sold_units['Agreement value'], errors='coerce').sum()
+                        total_receivable = pd.to_numeric(sold_units['Amount Receivable'], errors='coerce').sum()
+                        context_parts.append(f"Total agreement value of sold units: ₹{total_agreement:,.2f}")
+                        context_parts.append(f"Total amount receivable from sold units: ₹{total_receivable:,.2f}")
+    
+    # Section for NOC & Sales Data
+    if 'step_3_data' in session_data:
+        context_parts.append("\n=== NOC & RECENT SALES DATA ===")
+        step3_data = session_data['step_3_data']
+        
+        if 'noc_data' in step3_data and isinstance(step3_data.get('noc_data'), dict) and 'selected_units' in step3_data['noc_data']:
+            noc_units = step3_data['noc_data']['selected_units']
+            context_parts.append(f"NOC Analysis: {len(noc_units)} units were selected for analysis.")
+            
+            # ready_for_noc = 0
+            # not_ready_for_noc = 0
+            
+            # for unit in noc_units:
+            #     try:
+            #         agreement_value = float(unit.get('agreement_value', 0))
+            #         saleable_area = float(unit.get('saleable_area', 0))
+            #         # Define a clear threshold; avoid magic numbers
+            #         THRESHOLD_PER_SQFT = 27500
+            #         threshold_value = THRESHOLD_PER_SQFT * saleable_area
+                    
+            #         if agreement_value >= threshold_value:
+            #             ready_for_noc += 1
+            #         else:
+            #             not_ready_for_noc += 1
+            #     except (ValueError, TypeError):
+            #         not_ready_for_noc += 1 # Count as not ready if data is invalid
+            
+            # context_parts.append(f"Units ready for NOC: {ready_for_noc}")
+            # context_parts.append(f"Units not ready for NOC: {not_ready_for_noc}")
+        
+        if 'recently_sold_flats_by_tower' in step3_data and isinstance(step3_data['recently_sold_flats_by_tower'], dict):
+            context_parts.append("\n--- Recent Sales by Tower ---")
+            for tower, flats in step3_data['recently_sold_flats_by_tower'].items():
+                context_parts.append(f"Tower {tower}: {len(flats)} units recently sold.")
+    
+    return "\n".join(context_parts)
+
+
+async def get_ai_response(user_message, context):
+    """
+    Sends the user message and session context to the Gemini API and returns the response.
+    """
+    prompt = f"""
+    You are an expert financial data analysis assistant for a real estate company.
+    Your role is to answer questions based ONLY on the data provided from the user's session.
+    Do not make up information or answer questions outside of the provided context.
+    If the answer cannot be found in the provided data, state that clearly and politely.
+    Basically what we are doing is we upload a previous MIS excel sheet (February) and a
+    new MIS excel sheet (March) we basically do a comparitive analysis for real estate units.
+    Also we do comparitive analysis with bank statements.
+    Recently sold units means units which were sold in new MIS but were unsold in previous MIS.
+    Same logic for all other stuff where it mentions recently.
+    Remember Received amount  = Agreement Value - Receivable.
+    Here is the summary of the user's session data:
+    ---
+    {context}
+    ---
+
+    User's question: "{user_message}"
+
+    Based on the data above, please provide a concise and helpful answer.
+    """
+    
+    try:
+        # Prepare the payload for the Gemini API
+        payload = {
+            "contents": [{
+                "role": "user",
+                "parts": [{"text": prompt}]
+            }]
+        }
+        
+        
+        api_key = os.getenv('GEMINI_API_KEY')
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+        
+        # Make the asynchronous API call using httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.post(api_url, json=payload, timeout=45.0)
+            response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+            result = response.json()
+
+        # Safely extract the text from the API response
+        if (result.get("candidates") and 
+            result["candidates"][0].get("content") and 
+            result["candidates"][0]["content"].get("parts")):
+            text = result["candidates"][0]["content"]["parts"][0].get("text")
+            return text or "I received a response, but it was empty."
+        else:
+            # Log the unexpected response for debugging purposes
+            print("Unexpected API response structure:", result)
+            return "Sorry, I received an unexpected response from the AI. Please try again."
+
+    except httpx.HTTPStatusError as e:
+        print(f"HTTP Error: {e.response.status_code} - {e.response.text}")
+        return f"Sorry, I encountered an error communicating with the AI service (HTTP {e.response.status_code}). Please try again later."
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return "Sorry, an unexpected error occurred. Please check the logs and try again."
+
+def chatbot_interface():
+    """
+    Sets up the Streamlit user interface for the chatbot.
+    """
+    st.subheader("Data Analysis Chatbot")
+    
+    # Initialize chat history in session state if it doesn't exist
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+   
+    # Generate the context from the current session state
+    context = create_context_from_session()
+
+    # For debugging: display the context that will be sent to the AI
+    with st.expander("View AI Context"):
+        st.text(context)
+    
+    # Container to display the chat history
+    chat_container = st.container()
+    with chat_container:
+        for message in st.session_state.chat_history:
+            is_user = message["role"] == "user"
+            # Apply different styles for user and assistant messages
+            style = (
+                "background-color: #e3f2fd; padding: 10px; margin: 5px 0; border-radius: 10px; margin-left: 20%;" 
+                if is_user 
+                else "background-color: #f5f5f5; padding: 10px; margin: 5px 0; border-radius: 10px; margin-right: 20%;"
+            )
+            name = "You" if is_user else "Assistant"
+            st.markdown(f'<div style="{style}"><strong>{name}:</strong> {message["content"]}</div>', unsafe_allow_html=True)
+                
+    # Input area for the user
+    user_input = st.chat_input("Ask a question about your data...")
+    
+    if user_input:
+        # Add user message to history and display it
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        
+        # Show a spinner while waiting for the AI response
+        with st.spinner("Assistant is thinking..."):
+            # Run the async API call
+            ai_response = asyncio.run(get_ai_response(user_input, context))
+        
+        # Add AI response to history
+        st.session_state.chat_history.append({"role": "assistant", "content": ai_response})
+        
+        # Rerun the app to display the new messages
+        st.rerun()
+
 
 def go_to_step(step_number):
     st.session_state.step = step_number
